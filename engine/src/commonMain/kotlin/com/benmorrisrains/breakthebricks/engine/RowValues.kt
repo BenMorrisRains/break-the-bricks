@@ -9,12 +9,19 @@ fun interface RowValues {
         val Fibonacci = RowValues { round -> fibonacci(round) }
 
         /**
-         * Ben's playtest change: Fibonacci divided by 3, rounded up, so values grow more gently:
-         * 1, 1, 1, 1, 2, 3, 5, 7, 12, 19, 30, ... by round. Never below 1.
+         * Ben's playtest call: Fibonacci divided by 8, rounded up, so values stay small for longer:
+         * 1 for rounds 1 to 6, then 2, 3, 5, 7, 12, 18, 30, 48, ... Never below 1.
+         * (The first playtest used 3, which got hard too quickly.)
          */
-        val FibonacciThirds = RowValues { round ->
-            val value = fibonacci(round)
-            value / 3 + if (value % 3 == 0L) 0 else 1
+        val FibonacciEighths = fibonacciOver(8)
+
+        /** Fibonacci by round divided by [divisor], rounded up. Never below 1. */
+        fun fibonacciOver(divisor: Long): RowValues {
+            require(divisor >= 1)
+            return RowValues { round ->
+                val value = fibonacci(round)
+                value / divisor + if (value % divisor == 0L) 0 else 1
+            }
         }
     }
 }
