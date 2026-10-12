@@ -5,7 +5,6 @@ import com.benmorrisrains.breakthebricks.engine.RoundPhase
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
-import kotlin.math.hypot
 import kotlin.math.sin
 
 /**
@@ -29,22 +28,13 @@ fun aimAngleTo(launchX: Float, floorY: Float, touchX: Float, touchY: Float, minA
 }
 
 /**
- * How far in cells a finger must pull from where it pressed below the floor before the
- * slingshot aims, so a plain tap there never fires.
+ * Steering aim for a finger that pressed below the floor at [pressX] while the aim was
+ * [pressAngle]: sliding right turns the aim right and sliding left turns it left, and one
+ * full field width ([columns] cells) sweeps the whole allowed range. Clamped like [aimAngleTo].
  */
-const val PULL_DEAD_ZONE_CELLS = 0.25f
-
-/**
- * Slingshot aim for a finger that pressed below the floor at ([anchorX], [anchorY]) and is
- * now at ([touchX], [touchY]): the ball goes the opposite way to the pull, so pulling down
- * and left aims up and right. Clamped like [aimAngleTo]. Null inside the dead zone or when
- * the pull isn't downward, which cancels the shot.
- */
-fun pullBackAngle(anchorX: Float, anchorY: Float, touchX: Float, touchY: Float, minAngle: Float): Float? {
-    val up = touchY - anchorY
-    val across = anchorX - touchX
-    if (up <= 0f || hypot(across, up) < PULL_DEAD_ZONE_CELLS) return null
-    return atan2(up, across).coerceIn(minAngle, PI.toFloat() - minAngle)
+fun steerAngle(pressAngle: Float, pressX: Float, touchX: Float, columns: Int, minAngle: Float): Float {
+    val range = PI.toFloat() - 2 * minAngle
+    return (pressAngle - (touchX - pressX) / columns * range).coerceIn(minAngle, PI.toFloat() - minAngle)
 }
 
 /** Far end of the aim line drawn from the launch point. */
@@ -56,7 +46,8 @@ fun aimLineEnd(launchX: Float, floorY: Float, angle: Float, length: Float = AIM_
  * - Press above the floor: the aim points at the finger. Dragging to or below the floor
  *   cancels, and lifting there does nothing; dragging back above resumes.
  * - Press below the floor (Ben's playtest ask, so the finger doesn't cover the aim line):
- *   slingshot, see [pullBackAngle]. Pulling back up past the press point cancels.
+ *   the aim line shows at once and sliding left or right steers it, see [steerAngle].
+ *   Sliding up into the field cancels; sliding back below resumes.
  * Only acts while the engine is in [RoundPhase.Aiming]. Positions are in world cells.
  */
 class AimGesture(private val engine: GameEngine) {
@@ -64,11 +55,11 @@ class AimGesture(private val engine: GameEngine) {
     var isAiming: Boolean = false
         private set
 
-    /** Where a slingshot press started, or null when the press was above the floor. */
-    private var anchor: WorldPoint? = null
+    /** Where a steering press started and the aim at that moment; null for a press above the floor. */
+    private var steerFrom: Pair<Float, Float>? = null
 
     fun press(x: Float, y: Float) {
-        anchor = if (y > engine.config.rows) WorldPoint(x, y) else null
+        steerFrom = if (y > engine.config.rows) x to engine.aimAngle else null
         move(x, y)
     }
 
@@ -78,9 +69,10 @@ class AimGesture(private val engine: GameEngine) {
             return
         }
         val config = engine.config
-        val start = anchor
-        val angle = if (start != null) {
-            pullBackAngle(start.x, start.y, x, y, config.minAimAngle)
+        val steer = steerFrom
+        val angle = if (steer != null) {
+            val (pressX, pressAngle) = steer
+            if (y < config.rows) null else steerAngle(pressAngle, pressX, x, config.columns, config.minAimAngle)
         } else {
             aimAngleTo(engine.launchX, config.rows.toFloat(), x, y, config.minAimAngle)
         }
