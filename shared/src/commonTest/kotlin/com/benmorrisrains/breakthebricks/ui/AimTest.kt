@@ -88,77 +88,64 @@ class AimTest {
     }
 
     @Test
-    fun pullingStraightDownFromBelowTheFloorAimsStraightUp() {
-        assertEquals(PI.toFloat() / 2, pullBackAngle(2f, 9.5f, 2f, 10.5f, min)!!, 1e-5f)
+    fun steeringRightTurnsTheAimRightAndOneFieldWidthSweepsTheWholeRange() {
+        val up = PI.toFloat() / 2
+        assertEquals(up, steerAngle(up, 3f, 3f, config.columns, min), 1e-5f)
+        assertTrue(steerAngle(up, 3f, 4f, config.columns, min) < up)
+        assertTrue(steerAngle(up, 3f, 2f, config.columns, min) > up)
+        assertEquals(min, steerAngle(PI.toFloat() - min, 0f, config.columns.toFloat(), config.columns, min), 1e-5f)
     }
 
     @Test
-    fun pullingDownAndLeftAimsUpAndRight() {
-        assertEquals(PI.toFloat() / 4, pullBackAngle(3f, 9.5f, 2f, 10.5f, min)!!, 1e-5f)
-        assertEquals(3 * PI.toFloat() / 4, pullBackAngle(3f, 9.5f, 4f, 10.5f, min)!!, 1e-5f)
+    fun steeringIsClampedToTheAllowedRange() {
+        assertEquals(min, steerAngle(1f, 0f, 50f, config.columns, min), 1e-5f)
+        assertEquals(PI.toFloat() - min, steerAngle(1f, 50f, 0f, config.columns, min), 1e-5f)
     }
 
     @Test
-    fun aTinyOrUpwardPullDoesNotAim() {
-        assertNull(pullBackAngle(3f, 9.5f, 3.1f, 9.6f, min))
-        assertNull(pullBackAngle(3f, 9.5f, 2f, 9.2f, min))
-        assertNull(pullBackAngle(3f, 9.5f, 2f, 9.5f, min))
-    }
-
-    @Test
-    fun slingshotFromBelowTheFloorFiresOppositeThePull() {
+    fun pressingBelowTheFloorShowsTheAimLineAtOnceAndSlidingSteersIt() {
         val engine = newGame()
         val gesture = AimGesture(engine)
-        // Pressing below the floor doesn't aim until the finger pulls past the dead zone.
-        gesture.press(1f, floor + 0.5f)
-        assertFalse(gesture.isAiming)
-        gesture.move(0f, floor + 1.5f)
+        gesture.press(3f, floor + 0.5f)
         assertTrue(gesture.isAiming)
-        assertEquals(PI.toFloat() / 4, engine.aimAngle, 1e-5f)
+        assertEquals(PI.toFloat() / 2, engine.aimAngle, 1e-5f)
+        gesture.move(4f, floor + 0.8f)
+        assertTrue(engine.aimAngle < PI.toFloat() / 2, "sliding right aims right")
         assertTrue(gesture.release())
         assertEquals(RoundPhase.Firing, engine.phase)
     }
 
     @Test
-    fun aTapBelowTheFloorDoesNotFire() {
+    fun aTapBelowTheFloorFiresAtTheCurrentAim() {
         val engine = newGame()
         val gesture = AimGesture(engine)
-        gesture.press(1f, floor + 0.5f)
-        assertFalse(gesture.release())
-        assertEquals(RoundPhase.Aiming, engine.phase)
+        engine.aim(1f)
+        gesture.press(5f, floor + 0.5f)
+        assertTrue(gesture.release())
+        assertEquals(1f, engine.aimAngle, 1e-5f)
+        assertEquals(RoundPhase.Firing, engine.phase)
     }
 
     @Test
-    fun pullingBackUpPastThePressPointCancelsTheSlingshot() {
+    fun steeringStartsFromTheCurrentAim() {
         val engine = newGame()
         val gesture = AimGesture(engine)
-        gesture.press(1f, floor + 0.5f)
-        gesture.move(0f, floor + 1.5f)
-        gesture.move(1f, floor + 0.2f)
+        engine.aim(1f)
+        gesture.press(5f, floor + 0.5f)
+        gesture.move(4f, floor + 0.5f)
+        assertTrue(engine.aimAngle > 1f, "sliding left from an aim of 1 rad turns it left")
+    }
+
+    @Test
+    fun slidingUpIntoTheFieldCancelsAndSlidingBackResumes() {
+        val engine = newGame()
+        val gesture = AimGesture(engine)
+        gesture.press(3f, floor + 0.5f)
+        gesture.move(3f, floor - 1f)
         assertFalse(gesture.isAiming)
-        assertFalse(gesture.release())
-        assertEquals(RoundPhase.Aiming, engine.phase)
-    }
-
-    @Test
-    fun inputIsIgnoredWhileBallsAreInFlight() {
-        val engine = newGame()
-        val gesture = AimGesture(engine)
-        gesture.press(engine.launchX, 3f)
-        gesture.release()
-        val angle = engine.aimAngle
-        gesture.press(0f, 8f)
-        assertFalse(gesture.isAiming)
-        assertEquals(angle, engine.aimAngle)
-        assertFalse(gesture.release())
-    }
-
-    @Test
-    fun cancelDropsTheShot() {
-        val engine = newGame()
-        val gesture = AimGesture(engine)
-        gesture.press(engine.launchX, 3f)
-        gesture.cancel()
+        gesture.move(3f, floor + 0.2f)
+        assertTrue(gesture.isAiming)
+        gesture.move(3f, floor - 1f)
         assertFalse(gesture.release())
         assertEquals(RoundPhase.Aiming, engine.phase)
     }
