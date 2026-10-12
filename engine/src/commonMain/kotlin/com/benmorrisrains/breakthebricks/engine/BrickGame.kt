@@ -20,7 +20,10 @@ class BrickGame(
     override val config: GameConfig = GameConfig(),
     val seed: Long,
     private val physics: BallPhysics,
+    /** Abilities active from round 1, such as a staked one. */
     abilities: List<Ability> = emptyList(),
+    /** Abilities this game earns on reaching their [Ability.earnedAtRound]. */
+    private val earnable: List<Ability> = Abilities.earnable,
 ) : GameEngine {
     private val random = SeededRandom(seed)
     private val events = mutableListOf<GameEvent>()
@@ -229,6 +232,20 @@ class BrickGame(
         stepsInPhase = 0
         phase = RoundPhase.Aiming
         events += GameEvent.RoundStarted(round, ballCount)
+        earnAbilities()
+    }
+
+    /**
+     * Reaching an ability's round earns it and keeps it active for the rest of the game.
+     * An ability that is already active (a staked copy) still reports the earned copy but
+     * doesn't fire twice.
+     */
+    private fun earnAbilities() {
+        for (ability in earnable) {
+            if (ability.earnedAtRound != round) continue
+            if (abilityList.none { it.id == ability.id }) abilityList += ability
+            events += GameEvent.AbilityEarned(ability.id, round)
+        }
     }
 
     /** Moves every brick down one row, bottom row first. */
