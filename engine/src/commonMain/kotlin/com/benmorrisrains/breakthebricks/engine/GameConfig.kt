@@ -13,6 +13,8 @@ data class GameConfig(
     val ballSpeed: Float = 18f,
     /** Seconds between two balls leaving the launch point. */
     val fireInterval: Float = 0.06f,
+    /** Seconds the bricks take to drop a row between rounds, so the UI can animate it. */
+    val advanceSeconds: Float = 0.2f,
     /** Smallest aim angle above horizontal, in radians (about 8 degrees). */
     val minAimAngle: Float = 0.14f,
     /** Bricks per new row are drawn between these bounds (inclusive). */
@@ -23,6 +25,7 @@ data class GameConfig(
 ) {
     init {
         require(columns > 0 && rows > 1)
+        require(fireInterval > 0f && advanceSeconds >= 0f && ballSpeed > 0f)
         require(minBricksPerRow in 1..columns && maxBricksPerRow in minBricksPerRow..columns)
     }
 
