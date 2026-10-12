@@ -10,18 +10,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.benmorrisrains.breakthebricks.platform.PlatformServices
 import com.benmorrisrains.breakthebricks.ui.GameScreen
+import com.benmorrisrains.breakthebricks.ui.GameSession
 import com.benmorrisrains.breakthebricks.ui.NeonPalette
-import com.benmorrisrains.breakthebricks.ui.PreviewGameEngine
 
 /**
- * Root composable for every platform. For now it runs the game screen on [PreviewGameEngine],
- * a stand-in with rough physics; task T6 swaps in the real engine and wires sound and haptics.
+ * Root composable for every platform: the real engine and physics on the game screen, with
+ * sound, haptics and the saved best score from [services]. Tap after a game over to play again.
  */
 @Composable
 fun App(services: PlatformServices = remember { PlatformServices() }) {
-    val engine = remember { PreviewGameEngine() }
+    val session = remember(services) { GameSession(services) }
     GameScreen(
-        engine = engine,
+        engine = session.engine,
+        bestPoints = session.bestPoints,
+        onFrame = session::onFrame,
+        onFire = session::onFired,
+        onGameOverTap = { session.restart() },
         modifier = Modifier
             .fillMaxSize()
             .background(NeonPalette.Background)

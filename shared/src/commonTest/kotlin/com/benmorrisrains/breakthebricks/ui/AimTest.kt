@@ -1,6 +1,8 @@
 package com.benmorrisrains.breakthebricks.ui
 
+import com.benmorrisrains.breakthebricks.engine.BrickGame
 import com.benmorrisrains.breakthebricks.engine.GameConfig
+import com.benmorrisrains.breakthebricks.engine.GridPhysics
 import com.benmorrisrains.breakthebricks.engine.RoundPhase
 import kotlin.math.PI
 import kotlin.math.hypot
@@ -14,6 +16,8 @@ class AimTest {
     private val config = GameConfig()
     private val floor = config.rows.toFloat()
     private val min = config.minAimAngle
+
+    private fun newGame() = BrickGame(config, seed = 2026, physics = GridPhysics)
 
     @Test
     fun touchStraightAboveAimsStraightUp() {
@@ -43,7 +47,7 @@ class AimTest {
 
     @Test
     fun pressAndReleaseFiresTowardTheFinger() {
-        val engine = PreviewGameEngine()
+        val engine = newGame()
         val gesture = AimGesture(engine)
         gesture.press(engine.launchX, 3f)
         assertTrue(gesture.isAiming)
@@ -55,7 +59,7 @@ class AimTest {
 
     @Test
     fun dragFollowsTheFingerUntilRelease() {
-        val engine = PreviewGameEngine()
+        val engine = newGame()
         val gesture = AimGesture(engine)
         gesture.press(engine.launchX, 3f)
         gesture.move(engine.launchX + 2f, floor - 2f)
@@ -64,7 +68,7 @@ class AimTest {
 
     @Test
     fun releasingBelowTheFloorDoesNotFire() {
-        val engine = PreviewGameEngine()
+        val engine = newGame()
         val gesture = AimGesture(engine)
         gesture.press(engine.launchX, 3f)
         gesture.move(engine.launchX, floor + 0.3f)
@@ -75,7 +79,7 @@ class AimTest {
 
     @Test
     fun draggingBackAboveTheFloorResumesAiming() {
-        val engine = PreviewGameEngine()
+        val engine = newGame()
         val gesture = AimGesture(engine)
         gesture.press(engine.launchX, floor + 0.3f)
         gesture.move(engine.launchX - 1f, 4f)
@@ -84,7 +88,7 @@ class AimTest {
 
     @Test
     fun inputIsIgnoredWhileBallsAreInFlight() {
-        val engine = PreviewGameEngine()
+        val engine = newGame()
         val gesture = AimGesture(engine)
         gesture.press(engine.launchX, 3f)
         gesture.release()
@@ -97,7 +101,7 @@ class AimTest {
 
     @Test
     fun cancelDropsTheShot() {
-        val engine = PreviewGameEngine()
+        val engine = newGame()
         val gesture = AimGesture(engine)
         gesture.press(engine.launchX, 3f)
         gesture.cancel()
