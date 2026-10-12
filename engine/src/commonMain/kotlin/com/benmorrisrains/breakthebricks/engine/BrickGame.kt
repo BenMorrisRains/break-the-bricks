@@ -84,6 +84,11 @@ class BrickGame(
     }
 
     init {
+        // Higher ranks start with extra rows, worth what round 1 is worth, already on the board.
+        repeat(config.startingRows - 1) {
+            spawnRow(config.rowValues.valueFor(1))
+            dropBricks()
+        }
         startRound()
     }
 
@@ -228,7 +233,7 @@ class BrickGame(
             ball.vy = 0f
             ball.state = BallState.Waiting
         }
-        spawnRow()
+        spawnRow(config.rowValues.valueFor(round))
         stepsInPhase = 0
         phase = RoundPhase.Aiming
         events += GameEvent.RoundStarted(round, ballCount)
@@ -260,9 +265,8 @@ class BrickGame(
         }
     }
 
-    /** Fills row 0 with this round's bricks in seeded random columns. */
-    private fun spawnRow() {
-        val value = config.rowValues.valueFor(round)
+    /** Fills row 0 with bricks worth [value] in seeded random columns. */
+    private fun spawnRow(value: Long) {
         val count = random.nextIntInclusive(config.minBricksPerRow, config.maxBricksPerRow)
         val columns = IntArray(config.columns) { it }
         // Partial Fisher-Yates: the first [count] entries become the chosen columns.

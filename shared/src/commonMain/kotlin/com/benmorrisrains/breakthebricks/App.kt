@@ -15,7 +15,8 @@ import com.benmorrisrains.breakthebricks.ui.NeonPalette
 
 /**
  * Root composable for every platform: the real engine and physics on the game screen, with
- * sound, haptics and the saved best score from [services]. Tap after a game over to play again.
+ * sound, haptics, the saved best score and the player's rank from [services]. Tap after a game
+ * over to play again.
  */
 @Composable
 fun App(services: PlatformServices = remember { PlatformServices() }) {
@@ -23,6 +24,8 @@ fun App(services: PlatformServices = remember { PlatformServices() }) {
     GameScreen(
         engine = session.engine,
         bestPoints = session.bestPoints,
+        hudRank = session::hudRank,
+        rankUp = session.rankUp,
         onFrame = session::onFrame,
         onFire = session::onFired,
         onGameOverTap = { session.restart() },

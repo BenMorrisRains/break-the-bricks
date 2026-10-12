@@ -3,9 +3,13 @@ package com.benmorrisrains.breakthebricks.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,13 +40,16 @@ private const val MAX_FRAME_SECONDS = 0.1f
  * The game: HUD on top, a thin divider, then the [GameCanvas]. Drives [engine] once per display
  * frame (60 or 120 Hz) and hands each frame's time and drained events to [onFrame] for sound and
  * haptics. [onFire] runs when a release fires the balls; [onGameOverTap] when the field is tapped
- * after a game over.
+ * after a game over. [hudRank] gives the rank and bar for the points scored so far; [rankUp]
+ * puts a rank-up banner on the game over screen.
  */
 @Composable
 fun GameScreen(
     engine: GameEngine,
     modifier: Modifier = Modifier,
     bestPoints: Long = 0L,
+    hudRank: (points: Long) -> HudRank = { HudRank(rank = 1, progress = 0f) },
+    rankUp: RankUp? = null,
     onFrame: (elapsedSeconds: Float, events: List<GameEvent>) -> Unit = { _, _ -> },
     onFire: () -> Unit = {},
     onGameOverTap: () -> Unit = {},
@@ -68,12 +75,14 @@ fun GameScreen(
     }
     Column(modifier) {
         GameHud(engine, frame, bestPoints)
+        RankBar(engine, frame, hudRank)
         Box(Modifier.fillMaxWidth().height(1.dp).background(NeonPalette.Purple.copy(alpha = 0.5f)))
         GameCanvas(
             engine = engine,
             frame = frame,
             flashes = flashes,
             abilityCue = abilityCue,
+            rankUp = rankUp,
             modifier = Modifier.fillMaxWidth().weight(1f),
             onFire = onFire,
             onGameOverTap = onGameOverTap,
@@ -103,6 +112,23 @@ fun GameHud(engine: GameEngine, frame: LongState, bestPoints: Long, modifier: Mo
             modifier = Modifier.align(Alignment.CenterEnd),
             style = hudStyle(NeonPalette.Purple, 14.sp),
         )
+    }
+}
+
+/** The player's rank on the left and a neon bar of points to the next rank beside it. */
+@Composable
+fun RankBar(engine: GameEngine, frame: LongState, hudRank: (points: Long) -> HudRank, modifier: Modifier = Modifier) {
+    val latestHudRank by rememberUpdatedState(hudRank)
+    val shown by remember(engine) { derivedStateOf { frame.longValue; latestHudRank(engine.points) } }
+    Row(
+        modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BasicText(text = "RANK ${shown.rank}", style = hudStyle(NeonPalette.Cyan, 12.sp))
+        Spacer(Modifier.width(10.dp))
+        Box(Modifier.weight(1f).height(6.dp).background(NeonPalette.Dim)) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(shown.progress.coerceIn(0f, 1f)).background(NeonPalette.Lime))
+        }
     }
 }
 

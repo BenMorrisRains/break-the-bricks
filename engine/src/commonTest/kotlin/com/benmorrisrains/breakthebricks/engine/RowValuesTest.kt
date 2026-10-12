@@ -32,4 +32,11 @@ class RowValuesTest {
     fun fibonacciSaturatesInsteadOfOverflowing() {
         assertEquals(Long.MAX_VALUE, fibonacci(200))
     }
+
+    @Test
+    fun startingAheadShiftsRounds() {
+        val ahead = RowValues.FibonacciEighths.startingAhead(3)
+        assertEquals((4..13).map { RowValues.FibonacciEighths.valueFor(it) }, (1..10).map { ahead.valueFor(it) })
+        assertEquals(RowValues.FibonacciEighths, RowValues.FibonacciEighths.startingAhead(0))
+    }
 }

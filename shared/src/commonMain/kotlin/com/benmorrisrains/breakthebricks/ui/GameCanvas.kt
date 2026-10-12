@@ -41,6 +41,7 @@ import kotlin.math.sqrt
  * short aim line. It only reads [engine] state; touches go to the engine through [AimGesture].
  * Redraws whenever [frame] changes, which [GameScreen] bumps once per display frame.
  * [onFire] runs when a release fires the balls, [onGameOverTap] on a tap after the game is over.
+ * A [rankUp] shows as a banner above the game over text.
  */
 @Composable
 fun GameCanvas(
@@ -49,6 +50,7 @@ fun GameCanvas(
     flashes: BrickFlashes,
     abilityCue: AbilityCue,
     modifier: Modifier = Modifier,
+    rankUp: RankUp? = null,
     onFire: () -> Unit = {},
     onGameOverTap: () -> Unit = {},
 ) {
@@ -73,7 +75,7 @@ fun GameCanvas(
         if (gesture.isAiming && engine.phase == RoundPhase.Aiming) drawAimLine(engine, layout)
         drawBalls(engine, layout, abilityCue.isArmed(engine))
         drawBallCounter(engine, layout, labels)
-        if (engine.phase == RoundPhase.GameOver) drawGameOver(layout, labels)
+        if (engine.phase == RoundPhase.GameOver) drawGameOver(layout, labels, rankUp)
     }
 }
 
@@ -294,7 +296,7 @@ private fun DrawScope.drawBallCounter(engine: GameEngine, layout: FieldLayout, l
     drawText(label, NeonPalette.Ink, Offset(x - half, y))
 }
 
-private fun DrawScope.drawGameOver(layout: FieldLayout, labels: LabelCache) {
+private fun DrawScope.drawGameOver(layout: FieldLayout, labels: LabelCache, rankUp: RankUp?) {
     drawRect(
         NeonPalette.Background.copy(alpha = 0.7f),
         Offset(layout.originX, layout.originY),
@@ -306,6 +308,11 @@ private fun DrawScope.drawGameOver(layout: FieldLayout, labels: LabelCache) {
     val hint = labels.get(this, "TAP TO PLAY AGAIN", layout.cell * 0.22f)
     val hintTop = center.y + label.size.height / 2f + layout.cell * 0.3f
     drawText(hint, NeonPalette.Cyan, Offset(center.x - hint.size.width / 2f, hintTop))
+    if (rankUp != null) {
+        val banner = labels.get(this, "RANK UP!  RANK ${rankUp.to}", layout.cell * 0.4f)
+        val bannerTop = center.y - label.size.height / 2f - layout.cell * 0.5f - banner.size.height
+        drawText(banner, NeonPalette.Lime, Offset(center.x - banner.size.width / 2f, bannerTop))
+    }
 }
 
 /**
