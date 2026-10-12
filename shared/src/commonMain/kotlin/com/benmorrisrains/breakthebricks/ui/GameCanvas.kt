@@ -5,7 +5,9 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LongState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -36,6 +38,7 @@ import kotlin.math.hypot
  * The play field: neon bricks with their numbers, balls, the floor, the ball counter and the
  * short aim line. It only reads [engine] state; touches go to the engine through [AimGesture].
  * Redraws whenever [frame] changes, which [GameScreen] bumps once per display frame.
+ * [onFire] runs when a release fires the balls, [onGameOverTap] on a tap after the game is over.
  */
 @Composable
 fun GameCanvas(
@@ -43,11 +46,18 @@ fun GameCanvas(
     frame: LongState,
     flashes: BrickFlashes,
     modifier: Modifier = Modifier,
+    onFire: () -> Unit = {},
+    onGameOverTap: () -> Unit = {},
 ) {
     val gesture = remember(engine) { AimGesture(engine) }
     val textMeasurer = rememberTextMeasurer()
     val labels = remember(textMeasurer) { LabelCache(textMeasurer) }
-    Canvas(modifier.pointerInput(engine) { aimInput(engine.config, gesture) }) {
+    val latestOnFire by rememberUpdatedState(onFire)
+    val latestOnGameOverTap by rememberUpdatedState(onGameOverTap)
+    val input = Modifier.pointerInput(engine) {
+        aimInput(engine, gesture, onFire = { latestOnFire() }, onGameOverTap = { latestOnGameOverTap() })
+    }
+    Canvas(modifier.then(input)) {
         frame.longValue
         val layout = FieldLayout(engine.config, size.width, size.height)
         if (layout.isEmpty) return@Canvas
@@ -64,11 +74,24 @@ fun GameCanvas(
     }
 }
 
-/** Finger down or drag aims, lift fires; see [AimGesture] for the cancel rule. */
-private suspend fun PointerInputScope.aimInput(config: GameConfig, gesture: AimGesture) {
+/**
+ * Finger down or drag aims, lift fires; see [AimGesture] for the cancel rule. After a game over,
+ * a press is a tap to play again instead.
+ */
+private suspend fun PointerInputScope.aimInput(
+    engine: GameEngine,
+    gesture: AimGesture,
+    onFire: () -> Unit,
+    onGameOverTap: () -> Unit,
+) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
-        val layout = FieldLayout(config, size.width.toFloat(), size.height.toFloat())
+        if (engine.phase == RoundPhase.GameOver) {
+            down.consume()
+            onGameOverTap()
+            return@awaitEachGesture
+        }
+        val layout = FieldLayout(engine.config, size.width.toFloat(), size.height.toFloat())
         if (layout.isEmpty) return@awaitEachGesture
         try {
             gesture.press(layout.toWorldX(down.position.x), layout.toWorldY(down.position.y))
@@ -77,7 +100,7 @@ private suspend fun PointerInputScope.aimInput(config: GameConfig, gesture: AimG
                 val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
                 if (change.changedToUp()) {
                     change.consume()
-                    gesture.release()
+                    if (gesture.release()) onFire()
                     break
                 }
                 gesture.move(layout.toWorldX(change.position.x), layout.toWorldY(change.position.y))
@@ -210,6 +233,9 @@ private fun DrawScope.drawGameOver(layout: FieldLayout, labels: LabelCache) {
     val label = labels.get(this, "GAME OVER", layout.cell * 0.55f)
     val center = Offset(layout.originX + layout.fieldWidth / 2, (layout.originY + layout.floorY) / 2)
     drawText(label, NeonPalette.Magenta, center - Offset(label.size.width / 2f, label.size.height / 2f))
+    val hint = labels.get(this, "TAP TO PLAY AGAIN", layout.cell * 0.22f)
+    val hintTop = center.y + label.size.height / 2f + layout.cell * 0.3f
+    drawText(hint, NeonPalette.Cyan, Offset(center.x - hint.size.width / 2f, hintTop))
 }
 
 /**

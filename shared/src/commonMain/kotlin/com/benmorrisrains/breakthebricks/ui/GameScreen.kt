@@ -34,17 +34,22 @@ private const val MAX_FRAME_SECONDS = 0.1f
 
 /**
  * The game: HUD on top, a thin divider, then the [GameCanvas]. Drives [engine] once per display
- * frame (60 or 120 Hz) and hands each frame's drained events to [onEvents] for sound and haptics.
+ * frame (60 or 120 Hz) and hands each frame's time and drained events to [onFrame] for sound and
+ * haptics. [onFire] runs when a release fires the balls; [onGameOverTap] when the field is tapped
+ * after a game over.
  */
 @Composable
 fun GameScreen(
     engine: GameEngine,
     modifier: Modifier = Modifier,
-    onEvents: (List<GameEvent>) -> Unit = {},
+    bestPoints: Long = 0L,
+    onFrame: (elapsedSeconds: Float, events: List<GameEvent>) -> Unit = { _, _ -> },
+    onFire: () -> Unit = {},
+    onGameOverTap: () -> Unit = {},
 ) {
     val frame = remember { mutableLongStateOf(0L) }
     val flashes = remember(engine) { BrickFlashes() }
-    val latestOnEvents by rememberUpdatedState(onEvents)
+    val latestOnFrame by rememberUpdatedState(onFrame)
     LaunchedEffect(engine) {
         var last = withFrameNanos { it }
         while (true) {
@@ -54,21 +59,28 @@ fun GameScreen(
                 engine.advance(elapsed)
                 val events = engine.drainEvents()
                 flashes.update(elapsed, events)
-                if (events.isNotEmpty()) latestOnEvents(events)
+                latestOnFrame(elapsed, events)
                 frame.longValue++
             }
         }
     }
     Column(modifier) {
-        GameHud(engine, frame)
+        GameHud(engine, frame, bestPoints)
         Box(Modifier.fillMaxWidth().height(1.dp).background(NeonPalette.Purple.copy(alpha = 0.5f)))
-        GameCanvas(engine, frame, flashes, Modifier.fillMaxWidth().weight(1f))
+        GameCanvas(
+            engine = engine,
+            frame = frame,
+            flashes = flashes,
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            onFire = onFire,
+            onGameOverTap = onGameOverTap,
+        )
     }
 }
 
-/** Points in large arcade digits at top center, the round on the left. */
+/** Points in large arcade digits at top center, the round on the left, the best on the right. */
 @Composable
-fun GameHud(engine: GameEngine, frame: LongState, modifier: Modifier = Modifier) {
+fun GameHud(engine: GameEngine, frame: LongState, bestPoints: Long, modifier: Modifier = Modifier) {
     // Re-read the engine each frame but only recompose when the shown values change.
     val points by remember(engine) { derivedStateOf { frame.longValue; engine.points } }
     val round by remember(engine) { derivedStateOf { frame.longValue; engine.round } }
@@ -82,6 +94,11 @@ fun GameHud(engine: GameEngine, frame: LongState, modifier: Modifier = Modifier)
             text = formatPoints(points),
             modifier = Modifier.align(Alignment.Center),
             style = hudStyle(NeonPalette.Ink, 34.sp),
+        )
+        BasicText(
+            text = "BEST ${formatPoints(maxOf(bestPoints, points))}",
+            modifier = Modifier.align(Alignment.CenterEnd),
+            style = hudStyle(NeonPalette.Purple, 14.sp),
         )
     }
 }
