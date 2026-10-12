@@ -5,19 +5,19 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
-/**
- * The engine with the real [GridPhysics], played from round 1 to game over. Abilities are off:
- * with the grenade from round 5, these fixed test aims clear bricks faster than rows spawn and
- * the game never ends (grenade balance is Ben's call; GrenadeBallTest covers the ability).
- */
+/** The engine with the real [GridPhysics] and the grenade, played from round 1 to game over as the app runs it. */
 class FullGameTest {
     private val angles = listOf(1.3f, 0.5f, 2.4f, 1.0f, 1.9f, 0.3f, 2.8f, 1.57f, 0.8f, 2.1f)
 
     private class Played(val game: BrickGame, val events: List<GameEvent>, val launchXs: List<Float>)
 
     /** Plays a whole game in 1/60 s frames, checking every frame that flying balls stay in the field. */
-    private fun play(seed: Long, frameSeconds: (Int) -> Float = { 1f / 60 }): Played {
-        val game = BrickGame(seed = seed, physics = GridPhysics, earnable = emptyList())
+    private fun play(
+        seed: Long,
+        earnable: List<Ability> = Abilities.earnable,
+        frameSeconds: (Int) -> Float = { 1f / 60 },
+    ): Played {
+        val game = BrickGame(seed = seed, physics = GridPhysics, earnable = earnable)
         val config = game.config
         val events = mutableListOf<GameEvent>()
         val launchXs = mutableListOf<Float>()
@@ -53,9 +53,7 @@ class FullGameTest {
         assertEquals(game.round, gameOver.round)
         assertEquals(game.points, gameOver.points)
 
-        // One point per hit, wherever the hit came from.
-        val hitsTaken = played.events.filterIsInstance<GameEvent.BrickHit>().size.toLong()
-        assertEquals(hitsTaken, game.points)
+        assertTrue(played.events.any { it is GameEvent.AbilityTriggered }, "the grenade should go off")
 
         // One more ball every round.
         val rounds = played.events.filterIsInstance<GameEvent.RoundStarted>()
@@ -63,6 +61,13 @@ class FullGameTest {
             assertEquals(i + 1, started.round)
             assertEquals(started.round, started.ballCount)
         }
+    }
+
+    @Test
+    fun withoutAbilitiesEveryHitScoresOnePoint() {
+        val played = play(seed = 2026, earnable = emptyList())
+        val hits = played.events.filterIsInstance<GameEvent.BrickHit>().size.toLong()
+        assertEquals(hits, played.game.points)
     }
 
     @Test

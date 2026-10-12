@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -34,6 +34,7 @@ import com.benmorrisrains.breakthebricks.engine.GameConfig
 import com.benmorrisrains.breakthebricks.engine.GameEngine
 import com.benmorrisrains.breakthebricks.engine.RoundPhase
 import kotlin.math.hypot
+import kotlin.math.sqrt
 
 /**
  * The play field: neon bricks with their numbers, balls, the floor, the ball counter and the
@@ -177,23 +178,22 @@ private fun DrawScope.drawAimLine(engine: GameEngine, layout: FieldLayout) {
     drawLine(NeonPalette.Ink, from, to, strokeWidth = r * 0.45f, cap = StrokeCap.Round)
 }
 
-/** Balls are white; while [grenadeArmed], the round's first ball is the orange grenade. */
+/** Balls are white; while [grenadeArmed], the round's first ball is drawn as a hand grenade. */
 private fun DrawScope.drawBalls(engine: GameEngine, layout: FieldLayout, grenadeArmed: Boolean) {
     val config = engine.config
     val grenade = engine.balls.firstOrNull()?.takeIf { grenadeArmed }
     for (ball in engine.balls) {
-        val color = if (ball === grenade) NeonPalette.Orange else NeonPalette.Ink
+        val isGrenade = ball === grenade
         when (ball.state) {
-            BallState.Flying -> drawBall(ball.x, ball.y, layout, config, color, trailOf = ball)
-            BallState.Landed -> drawBall(ball.x, ball.y, layout, config, NeonPalette.Ink)
+            BallState.Flying -> drawBall(ball.x, ball.y, layout, config, trailOf = ball, isGrenade = isGrenade)
+            BallState.Landed -> drawBall(ball.x, ball.y, layout, config)
             BallState.Waiting -> Unit
         }
     }
     // Balls still waiting to leave all sit on the launch point, so one is drawn for them.
     if (engine.phase == RoundPhase.Aiming || engine.balls.any { it.state == BallState.Waiting }) {
         val nextIsGrenade = grenadeArmed && (engine.phase == RoundPhase.Aiming || grenade?.state == BallState.Waiting)
-        val color = if (nextIsGrenade) NeonPalette.Orange else NeonPalette.Ink
-        drawBall(engine.launchX, config.rows - config.ballRadius, layout, config, color)
+        drawBall(engine.launchX, config.rows - config.ballRadius, layout, config, isGrenade = nextIsGrenade)
     }
 }
 
@@ -202,11 +202,12 @@ private fun DrawScope.drawBall(
     y: Float,
     layout: FieldLayout,
     config: GameConfig,
-    color: Color,
     trailOf: Ball? = null,
+    isGrenade: Boolean = false,
 ) {
     val r = config.ballRadius * layout.cell
     val center = Offset(layout.toScreenX(x), layout.toScreenY(y))
+    val color = if (isGrenade) NeonPalette.Orange else NeonPalette.Ink
     if (trailOf != null) {
         val speed = hypot(trailOf.vx, trailOf.vy)
         if (speed > 0f) {
@@ -219,8 +220,63 @@ private fun DrawScope.drawBall(
             drawLine(brush, tail, center, strokeWidth = r * 1.4f, cap = StrokeCap.Round)
         }
     }
-    drawCircle(color.copy(alpha = 0.18f), radius = r * 2f, center = center)
-    drawCircle(color, radius = r, center = center)
+    if (isGrenade) {
+        drawGrenade(center, r)
+    } else {
+        drawCircle(color.copy(alpha = 0.18f), radius = r * 2f, center = center)
+        drawCircle(color, radius = r, center = center)
+    }
+}
+
+/**
+ * A neon hand grenade around [center]: a ribbed oval body, the fuse cap, the lever down its
+ * side and the pull ring. Drawn about 2.5 times the ball's radius [r] so it reads at a glance;
+ * the ball still collides as a plain ball of radius [r].
+ */
+private fun DrawScope.drawGrenade(center: Offset, r: Float) {
+    val s = r * 2.5f
+    val line = maxOf(1.5f, s * 0.09f)
+    drawCircle(NeonPalette.Orange.copy(alpha = 0.16f), radius = s * 1.35f, center = center)
+
+    // Body: an upright oval, a little below center so the cap sits on top.
+    val a = s * 0.75f
+    val b = s * 0.9f
+    val body = Offset(center.x, center.y + s * 0.15f)
+    drawOval(NeonPalette.Lime.copy(alpha = 0.3f), Offset(body.x - a, body.y - b), Size(a * 2, b * 2))
+    // Pineapple ribs, cut to the oval's outline.
+    val rib = NeonPalette.Lime.copy(alpha = 0.75f)
+    for (dy in listOf(-0.35f, 0.35f)) {
+        val half = a * sqrt(1f - dy * dy)
+        val ribY = body.y + dy * b
+        drawLine(rib, Offset(body.x - half, ribY), Offset(body.x + half, ribY), strokeWidth = line * 0.7f)
+    }
+    for (dx in listOf(-0.45f, 0f, 0.45f)) {
+        val half = b * sqrt(1f - dx * dx)
+        val ribX = body.x + dx * a
+        drawLine(rib, Offset(ribX, body.y - half), Offset(ribX, body.y + half), strokeWidth = line * 0.7f)
+    }
+    drawOval(NeonPalette.Lime, Offset(body.x - a, body.y - b), Size(a * 2, b * 2), style = Stroke(width = line))
+
+    // Fuse cap on top.
+    val capTop = Offset(center.x - s * 0.28f, body.y - b - s * 0.32f)
+    val capSize = Size(s * 0.56f, s * 0.36f)
+    drawRect(NeonPalette.Dim, capTop, capSize)
+    drawRect(NeonPalette.Ink, capTop, capSize, style = Stroke(width = line * 0.8f))
+
+    // Lever (spoon) from the cap down the right side.
+    val lever = Path().apply {
+        moveTo(capTop.x + capSize.width, capTop.y + capSize.height * 0.3f)
+        quadraticTo(body.x + a * 1.25f, capTop.y, body.x + a * 1.1f, body.y)
+    }
+    drawPath(lever, NeonPalette.Ink, style = Stroke(width = line, cap = StrokeCap.Round))
+
+    // Pull ring on the left of the cap.
+    drawCircle(
+        NeonPalette.Yellow,
+        radius = s * 0.22f,
+        center = Offset(capTop.x - s * 0.12f, capTop.y + capSize.height * 0.2f),
+        style = Stroke(width = line * 0.8f),
+    )
 }
 
 /** "x12" under the floor by the launch point: balls left to fire this round. */
