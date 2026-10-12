@@ -107,4 +107,32 @@ class GameSessionTest {
         assertEquals(listOf(HapticStrength.Light), recorder.taps, "the break tap is rate-limited after the fire tap")
         assertSame(engine, session.engine)
     }
+
+    @Test
+    fun aLevelSavesItsOwnBestAndReportsTheResult() {
+        val results = mutableListOf<Pair<Boolean, Long>>()
+        val session = GameSession(
+            services,
+            newSeed = { 1L },
+            newEngine = { FakeEngine() },
+            bestPointsKey = "level_3_best",
+            onFinished = { passed, points -> results += passed to points },
+        )
+        session.onFrame(0.016f, listOf(GameEvent.LevelCompleted(round = 8, points = 90)))
+        assertEquals(listOf(true to 90L), results)
+        assertEquals(90, store.getLong("level_3_best", 0))
+        assertEquals(0, store.getLong(GameSession.BEST_POINTS_KEY, 0), "free play's best is untouched")
+        session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 4, points = 30)))
+        assertEquals(listOf(true to 90L, false to 30L), results)
+        assertEquals(90, session.bestPoints)
+    }
+
+    @Test
+    fun aClearedLevelCanBeTappedPast() {
+        val engines = mutableListOf<FakeEngine>()
+        val session = session(engines)
+        engines.last().phase = RoundPhase.LevelComplete
+        session.onFrame(GameSession.RESTART_DELAY_SECONDS, emptyList())
+        assertTrue(session.canRestart)
+    }
 }

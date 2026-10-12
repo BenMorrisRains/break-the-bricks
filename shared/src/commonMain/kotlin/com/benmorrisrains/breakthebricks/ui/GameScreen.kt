@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.benmorrisrains.breakthebricks.engine.GameEngine
 import com.benmorrisrains.breakthebricks.engine.GameEvent
+import com.benmorrisrains.breakthebricks.engine.Level
 
 /** Longest frame fed to the engine, so a stall (app in background, debugger) doesn't jump the game. */
 private const val MAX_FRAME_SECONDS = 0.1f
@@ -36,7 +37,7 @@ private const val MAX_FRAME_SECONDS = 0.1f
  * The game: HUD on top, a thin divider, then the [GameCanvas]. Drives [engine] once per display
  * frame (60 or 120 Hz) and hands each frame's time and drained events to [onFrame] for sound and
  * haptics. [onFire] runs when a release fires the balls; [onGameOverTap] when the field is tapped
- * after a game over.
+ * after a game over. [level] is the level being played, or null in free play.
  */
 @Composable
 fun GameScreen(
@@ -46,6 +47,7 @@ fun GameScreen(
     onFrame: (elapsedSeconds: Float, events: List<GameEvent>) -> Unit = { _, _ -> },
     onFire: () -> Unit = {},
     onGameOverTap: () -> Unit = {},
+    level: Level? = null,
 ) {
     val frame = remember { mutableLongStateOf(0L) }
     val flashes = remember(engine) { BrickFlashes() }
@@ -77,11 +79,15 @@ fun GameScreen(
             modifier = Modifier.fillMaxWidth().weight(1f),
             onFire = onFire,
             onGameOverTap = onGameOverTap,
+            level = level,
         )
     }
 }
 
-/** Points in large arcade digits at top center, the round on the left, the best on the right. */
+/**
+ * Points in large arcade digits at top center, the round on the left (with the goal in a
+ * level, "ROUND 3/8"), the best on the right.
+ */
 @Composable
 fun GameHud(engine: GameEngine, frame: LongState, bestPoints: Long, modifier: Modifier = Modifier) {
     // Re-read the engine each frame but only recompose when the shown values change.
@@ -89,7 +95,7 @@ fun GameHud(engine: GameEngine, frame: LongState, bestPoints: Long, modifier: Mo
     val round by remember(engine) { derivedStateOf { frame.longValue; engine.round } }
     Box(modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp)) {
         BasicText(
-            text = "ROUND $round",
+            text = roundLabel(round, engine.goalRounds),
             modifier = Modifier.align(Alignment.CenterStart),
             style = hudStyle(NeonPalette.Purple, 14.sp),
         )

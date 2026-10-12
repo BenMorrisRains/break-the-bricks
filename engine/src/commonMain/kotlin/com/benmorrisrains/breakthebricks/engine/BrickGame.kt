@@ -12,7 +12,8 @@ import kotlin.math.sin
  * The game itself: rounds, the brick grid, scoring and the fixed-step loop.
  * Collision math lives behind [physics]; abilities plug in through [Ability].
  *
- * A round goes Aiming -> Firing -> Returning -> Advancing -> Aiming, or ends in GameOver.
+ * A round goes Aiming -> Firing -> Returning -> Advancing -> Aiming, or ends in GameOver
+ * (a brick reached the floor row) or LevelComplete (a level's [goalRounds] were survived).
  * Nothing moves while Aiming, so a game depends only on [seed] and the angle fired each round,
  * never on frame timing.
  */
@@ -24,6 +25,10 @@ class BrickGame(
     abilities: List<Ability> = emptyList(),
     /** Abilities this game earns on reaching their [Ability.earnedAtRound]. */
     private val earnable: List<Ability> = Abilities.earnable,
+    /** Bricks on the board before round 1, top row first, placed just below round 1's new row. */
+    layout: List<List<Long?>> = emptyList(),
+    /** Rounds to survive for a level; null for an endless game. */
+    override val goalRounds: Int? = null,
 ) : GameEngine {
     private val random = SeededRandom(seed)
     private val events = mutableListOf<GameEvent>()
@@ -84,6 +89,15 @@ class BrickGame(
     }
 
     init {
+        require(goalRounds == null || goalRounds >= 1)
+        // Row 0 is round 1's new row and the floor row ends the game, so a layout fits in between.
+        require(layout.size <= config.rows - 2) { "a layout has at most ${config.rows - 2} rows" }
+        layout.forEachIndexed { index, cells ->
+            require(cells.size == config.columns) { "a layout row has ${config.columns} cells" }
+            cells.forEachIndexed { column, hits ->
+                if (hits != null) board[column, index + 1] = Brick(column = column, row = index + 1, hits = hits)
+            }
+        }
         startRound()
     }
 
@@ -112,7 +126,7 @@ class BrickGame(
     }
 
     override fun advance(elapsedSeconds: Float) {
-        if (phase == RoundPhase.GameOver || elapsedSeconds <= 0f) return
+        if (phase.isFinished || elapsedSeconds <= 0f) return
         // Cap the catch-up after a long pause so one frame never runs thousands of steps.
         accumulator += min(elapsedSeconds, MAX_FRAME_SECONDS)
         while (accumulator >= GameConfig.STEP_SECONDS) {
@@ -121,10 +135,10 @@ class BrickGame(
         }
     }
 
-    /** Runs exactly one fixed physics step. Does nothing while Aiming or after GameOver. */
+    /** Runs exactly one fixed physics step. Does nothing while Aiming or once the game is finished. */
     fun step() {
         when (phase) {
-            RoundPhase.Aiming, RoundPhase.GameOver -> return
+            RoundPhase.Aiming, RoundPhase.GameOver, RoundPhase.LevelComplete -> return
             RoundPhase.Firing, RoundPhase.Returning -> stepBalls()
             RoundPhase.Advancing -> if (stepsInPhase + 1 >= advanceSteps) startRound()
         }
@@ -207,6 +221,12 @@ class BrickGame(
 
     private fun endRound() {
         launchX = firstLandingX ?: launchX
+        if (goalRounds != null && round >= goalRounds) {
+            // Surviving the last round wins; its bricks never drop.
+            phase = RoundPhase.LevelComplete
+            events += GameEvent.LevelCompleted(round, points)
+            return
+        }
         stepsInPhase = -1 // step() counts this step, so Advancing starts at 0.
         phase = RoundPhase.Advancing
         // The drop happens now so the UI can animate it during Advancing.

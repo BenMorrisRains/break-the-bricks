@@ -32,6 +32,7 @@ import com.benmorrisrains.breakthebricks.engine.Ball
 import com.benmorrisrains.breakthebricks.engine.BallState
 import com.benmorrisrains.breakthebricks.engine.GameConfig
 import com.benmorrisrains.breakthebricks.engine.GameEngine
+import com.benmorrisrains.breakthebricks.engine.Level
 import com.benmorrisrains.breakthebricks.engine.RoundPhase
 import kotlin.math.hypot
 import kotlin.math.sqrt
@@ -41,6 +42,7 @@ import kotlin.math.sqrt
  * short aim line. It only reads [engine] state; touches go to the engine through [AimGesture].
  * Redraws whenever [frame] changes, which [GameScreen] bumps once per display frame.
  * [onFire] runs when a release fires the balls, [onGameOverTap] on a tap after the game is over.
+ * [level] is the level being played, or null in free play; it sets the finish card's text.
  */
 @Composable
 fun GameCanvas(
@@ -51,6 +53,7 @@ fun GameCanvas(
     modifier: Modifier = Modifier,
     onFire: () -> Unit = {},
     onGameOverTap: () -> Unit = {},
+    level: Level? = null,
 ) {
     val gesture = remember(engine) { AimGesture(engine) }
     val textMeasurer = rememberTextMeasurer()
@@ -73,7 +76,7 @@ fun GameCanvas(
         if (gesture.isAiming && engine.phase == RoundPhase.Aiming) drawAimLine(engine, layout)
         drawBalls(engine, layout, abilityCue.isArmed(engine))
         drawBallCounter(engine, layout, labels)
-        if (engine.phase == RoundPhase.GameOver) drawGameOver(layout, labels)
+        finishCard(engine, level)?.let { drawFinishCard(it, layout, labels) }
     }
 }
 
@@ -89,7 +92,7 @@ private suspend fun PointerInputScope.aimInput(
 ) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
-        if (engine.phase == RoundPhase.GameOver) {
+        if (engine.phase.isFinished) {
             down.consume()
             onGameOverTap()
             return@awaitEachGesture
@@ -294,18 +297,23 @@ private fun DrawScope.drawBallCounter(engine: GameEngine, layout: FieldLayout, l
     drawText(label, NeonPalette.Ink, Offset(x - half, y))
 }
 
-private fun DrawScope.drawGameOver(layout: FieldLayout, labels: LabelCache) {
+private fun DrawScope.drawFinishCard(card: FinishCard, layout: FieldLayout, labels: LabelCache) {
     drawRect(
         NeonPalette.Background.copy(alpha = 0.7f),
         Offset(layout.originX, layout.originY),
         Size(layout.fieldWidth, layout.floorY - layout.originY),
     )
-    val label = labels.get(this, "GAME OVER", layout.cell * 0.55f)
+    val label = labels.get(this, card.title, layout.cell * 0.55f)
     val center = Offset(layout.originX + layout.fieldWidth / 2, (layout.originY + layout.floorY) / 2)
-    drawText(label, NeonPalette.Magenta, center - Offset(label.size.width / 2f, label.size.height / 2f))
-    val hint = labels.get(this, "TAP TO PLAY AGAIN", layout.cell * 0.22f)
-    val hintTop = center.y + label.size.height / 2f + layout.cell * 0.3f
-    drawText(hint, NeonPalette.Cyan, Offset(center.x - hint.size.width / 2f, hintTop))
+    drawText(label, if (card.won) NeonPalette.Lime else NeonPalette.Magenta, center - Offset(label.size.width / 2f, label.size.height / 2f))
+    var top = center.y + label.size.height / 2f + layout.cell * 0.3f
+    card.note?.let { text ->
+        val note = labels.get(this, text, layout.cell * 0.3f)
+        drawText(note, NeonPalette.Yellow, Offset(center.x - note.size.width / 2f, top))
+        top += note.size.height + layout.cell * 0.2f
+    }
+    val hint = labels.get(this, card.hint, layout.cell * 0.22f)
+    drawText(hint, NeonPalette.Cyan, Offset(center.x - hint.size.width / 2f, top))
 }
 
 /**
