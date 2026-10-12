@@ -21,7 +21,7 @@ data class GameConfig(
     val minBricksPerRow: Int = 1,
     val maxBricksPerRow: Int = 6,
     /** Value of the bricks in the row spawned at the start of a round. */
-    val rowValues: RowValues = RowValues.Fibonacci,
+    val rowValues: RowValues = RowValues.FibonacciThirds,
 ) {
     init {
         require(columns > 0 && rows > 1)

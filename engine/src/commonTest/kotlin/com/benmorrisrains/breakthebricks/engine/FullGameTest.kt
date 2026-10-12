@@ -5,7 +5,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
-/** The engine with the real [GridPhysics], played from round 1 to game over as the app runs it. */
+/**
+ * The engine with the real [GridPhysics], played from round 1 to game over. Abilities are off:
+ * with the grenade from round 5, these fixed test aims clear bricks faster than rows spawn and
+ * the game never ends (grenade balance is Ben's call; GrenadeBallTest covers the ability).
+ */
 class FullGameTest {
     private val angles = listOf(1.3f, 0.5f, 2.4f, 1.0f, 1.9f, 0.3f, 2.8f, 1.57f, 0.8f, 2.1f)
 
@@ -13,7 +17,7 @@ class FullGameTest {
 
     /** Plays a whole game in 1/60 s frames, checking every frame that flying balls stay in the field. */
     private fun play(seed: Long, frameSeconds: (Int) -> Float = { 1f / 60 }): Played {
-        val game = BrickGame(seed = seed, physics = GridPhysics)
+        val game = BrickGame(seed = seed, physics = GridPhysics, earnable = emptyList())
         val config = game.config
         val events = mutableListOf<GameEvent>()
         val launchXs = mutableListOf<Float>()

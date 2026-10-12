@@ -49,6 +49,7 @@ fun GameScreen(
 ) {
     val frame = remember { mutableLongStateOf(0L) }
     val flashes = remember(engine) { BrickFlashes() }
+    val abilityCue = remember(engine) { AbilityCue() }
     val latestOnFrame by rememberUpdatedState(onFrame)
     LaunchedEffect(engine) {
         var last = withFrameNanos { it }
@@ -59,6 +60,7 @@ fun GameScreen(
                 engine.advance(elapsed)
                 val events = engine.drainEvents()
                 flashes.update(elapsed, events)
+                abilityCue.update(events)
                 latestOnFrame(elapsed, events)
                 frame.longValue++
             }
@@ -71,6 +73,7 @@ fun GameScreen(
             engine = engine,
             frame = frame,
             flashes = flashes,
+            abilityCue = abilityCue,
             modifier = Modifier.fillMaxWidth().weight(1f),
             onFire = onFire,
             onGameOverTap = onGameOverTap,

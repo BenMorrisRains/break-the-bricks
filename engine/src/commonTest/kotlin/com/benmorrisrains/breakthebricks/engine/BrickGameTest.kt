@@ -93,7 +93,7 @@ class BrickGameTest {
     }
 
     @Test
-    fun oneMoreBallEveryRoundAndRowsFollowFibonacci() {
+    fun oneMoreBallEveryRoundAndRowsFollowTheRowValues() {
         val game = BrickGame(seed = 3, physics = DropPhysics { 3.5f })
         for (expectedRound in 1..7) {
             assertEquals(expectedRound, game.round)
@@ -101,7 +101,7 @@ class BrickGameTest {
             assertEquals(expectedRound, game.balls.size)
             val topRow = game.board.bricks().filter { it.row == 0 }.toList()
             assertTrue(topRow.isNotEmpty())
-            assertTrue(topRow.all { it.hits == fibonacci(expectedRound) })
+            assertTrue(topRow.all { it.hits == game.config.rowValues.valueFor(expectedRound) })
             playRound(game, 1.0f)
         }
     }
@@ -155,7 +155,8 @@ class BrickGameTest {
             if (board[0, 0] != null) contacts.brickHit(0, 0)
             true
         }
-        val game = BrickGame(GameConfig(minBricksPerRow = 7, maxBricksPerRow = 7), seed = 1, physics = physics)
+        val config = GameConfig(minBricksPerRow = 7, maxBricksPerRow = 7, rowValues = RowValues.Fibonacci)
+        val game = BrickGame(config, seed = 1, physics = physics)
         playRound(game, 1.0f) // round 1: 1 ball, brick value 1
         assertEquals(1L, game.points)
         val round1 = game.drainEvents()

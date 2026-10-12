@@ -11,6 +11,18 @@ class RowValuesTest {
     }
 
     @Test
+    fun fibonacciThirdsIsFibonacciOverThreeRoundedUp() {
+        val expected = listOf(1L, 1, 1, 1, 2, 3, 5, 7, 12, 19, 30, 48)
+        assertEquals(expected, (1..12).map { RowValues.FibonacciThirds.valueFor(it) })
+        assertEquals(Long.MAX_VALUE / 3 + 1, RowValues.FibonacciThirds.valueFor(200))
+    }
+
+    @Test
+    fun gamesUseFibonacciThirdsByDefault() {
+        assertEquals(RowValues.FibonacciThirds, GameConfig().rowValues)
+    }
+
+    @Test
     fun fibonacciSaturatesInsteadOfOverflowing() {
         assertEquals(Long.MAX_VALUE, fibonacci(200))
     }

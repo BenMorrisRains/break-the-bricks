@@ -28,7 +28,7 @@ If code and the doc disagree, the doc wins; if the doc is silent, ask Ben in you
 - The aim line is short and straight. Never show a bounce or trajectory preview.
 - No timer. A round ends when every ball is back; the game ends when a brick reaches the floor row.
 - The launch point for the next round is where the first ball landed.
-- Points: each hit takes 1 off a brick and scores 1 point. New-row values follow Fibonacci by round.
+- Points: each hit takes 1 off a brick and scores 1 point. New-row values are the Fibonacci number for the round divided by 3, rounded up (Ben, 2026-10-12 playtest): 1, 1, 1, 1, 2, 3, 5, 7, 12, 19, ...
 - Grenade ball: earned at round 5. From then on, the first ball each round explodes on its first hit, destroying that brick and up to the 5 nearest bricks.
 - No real-money wagers. Players stake earned abilities. A wager is won by reaching the ability's target round.
 - Abilities are never sold for money.
