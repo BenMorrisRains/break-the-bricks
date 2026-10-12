@@ -6,28 +6,38 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class BallPhysicsTest {
+class GridPhysicsTest {
     private val config = GameConfig()
     private val r = config.ballRadius
     private val eps = 1e-4f
 
     /** Records contacts and applies hits like the engine will: take 1 off, remove at 0. */
-    private class Recorder(private val board: Board) : CollisionListener {
+    private class Recorder(private val board: Board) : BallContacts {
         val hits = mutableListOf<Pair<Int, Int>>()
         var wallBounces = 0
 
-        override fun onBrickHit(brick: Brick) {
-            hits += brick.column to brick.row
+        override fun brickHit(column: Int, row: Int) {
+            hits += column to row
+            val brick = board[column, row] ?: error("hit an empty cell $column, $row")
             brick.hits -= 1
-            if (brick.hits == 0L) board[brick.column, brick.row] = null
+            if (brick.hits == 0L) board[column, row] = null
         }
 
-        override fun onWallBounce() {
+        override fun wallBounce() {
             wallBounces++
         }
     }
+
+    /** Runs one physics step; true when the ball landed. */
+    private fun step(
+        ball: Ball,
+        board: Board,
+        seconds: Float = GameConfig.STEP_SECONDS,
+        listener: BallContacts = Recorder(board),
+    ): Boolean = GridPhysics.step(ball, board, config, seconds, listener)
 
     private fun board() = Board(config.columns, config.rows)
 
@@ -43,8 +53,8 @@ class BallPhysicsTest {
     @Test
     fun movesInAStraightLineWithNothingInTheWay() {
         val ball = Ball(x = 3.5f, y = 5f, vx = 6f, vy = -12f)
-        val outcome = BallPhysics.step(ball, board(), config, seconds = 0.1f)
-        assertEquals(StepOutcome.Flying, outcome)
+        val landed = step(ball, board(), seconds = 0.1f)
+        assertFalse(landed)
         assertNear(4.1f, ball.x)
         assertNear(3.8f, ball.y)
     }
@@ -54,7 +64,7 @@ class BallPhysicsTest {
         val board = board()
         val recorder = Recorder(board)
         val ball = Ball(x = 0.5f, y = 5f, vx = -10f, vy = 0f)
-        BallPhysics.step(ball, board, config, seconds = 0.1f, listener = recorder)
+        step(ball, board, seconds = 0.1f, listener = recorder)
         // Travels 1 cell: 0.38 to the wall line at x = r, then 0.62 back.
         assertNear(r + 0.62f, ball.x)
         assertEquals(10f, ball.vx)
@@ -66,7 +76,7 @@ class BallPhysicsTest {
         val board = board()
         val recorder = Recorder(board)
         val ball = Ball(x = 6.5f, y = 0.5f, vx = 10f, vy = -10f)
-        BallPhysics.step(ball, board, config, seconds = 0.1f, listener = recorder)
+        step(ball, board, seconds = 0.1f, listener = recorder)
         assertNear(config.columns - r - 0.62f, ball.x)
         assertNear(r + 0.62f, ball.y)
         assertEquals(-10f, ball.vx)
@@ -78,19 +88,19 @@ class BallPhysicsTest {
     @Test
     fun landsOnTheFloorAndStops() {
         val ball = Ball(x = 2f, y = 8f, vx = 5f, vy = 10f)
-        val outcome = BallPhysics.step(ball, board(), config, seconds = 0.5f)
-        assertEquals(StepOutcome.Landed, outcome)
-        assertEquals(BallPhysics.restingY(config), ball.y)
-        assertNear(2f + 5f * (BallPhysics.restingY(config) - 8f) / 10f, ball.x)
+        val landed = step(ball, board(), seconds = 0.5f)
+        assertTrue(landed)
+        assertEquals(GridPhysics.restingY(config), ball.y)
+        assertNear(2f + 5f * (GridPhysics.restingY(config) - 8f) / 10f, ball.x)
         assertEquals(0f, ball.vx)
         assertEquals(0f, ball.vy)
     }
 
     @Test
     fun aBallLeavingTheFloorDoesNotLandAtOnce() {
-        val ball = Ball(x = 3.5f, y = BallPhysics.restingY(config), vx = 3f, vy = -17f)
-        assertEquals(StepOutcome.Flying, BallPhysics.step(ball, board(), config))
-        assertTrue(ball.y < BallPhysics.restingY(config))
+        val ball = Ball(x = 3.5f, y = GridPhysics.restingY(config), vx = 3f, vy = -17f)
+        assertFalse(step(ball, board()))
+        assertTrue(ball.y < GridPhysics.restingY(config))
     }
 
     @Test
@@ -98,7 +108,7 @@ class BallPhysicsTest {
         val board = board().apply { put(3, 2, hits = 5) }
         val recorder = Recorder(board)
         val ball = Ball(x = 3.5f, y = 4f, vx = 0f, vy = -10f)
-        BallPhysics.step(ball, board, config, seconds = 0.2f, listener = recorder)
+        step(ball, board, seconds = 0.2f, listener = recorder)
         assertEquals(listOf(3 to 2), recorder.hits)
         assertEquals(4L, board[3, 2]?.hits)
         assertEquals(10f, ball.vy)
@@ -112,7 +122,7 @@ class BallPhysicsTest {
         val board = board().apply { put(4, 3) }
         val recorder = Recorder(board)
         val ball = Ball(x = 2.5f, y = 3.5f, vx = 10f, vy = 0f)
-        BallPhysics.step(ball, board, config, seconds = 0.2f, listener = recorder)
+        step(ball, board, seconds = 0.2f, listener = recorder)
         assertEquals(listOf(4 to 3), recorder.hits)
         assertEquals(-10f, ball.vx)
         assertNear(4f - r - (2f - (4f - r - 2.5f)), ball.x)
@@ -124,7 +134,7 @@ class BallPhysicsTest {
         val recorder = Recorder(board)
         // Straight up into a brick in the top row: one contact, one hit.
         val ball = Ball(x = 3.5f, y = 2f, vx = 0f, vy = -18f)
-        BallPhysics.step(ball, board, config, seconds = 0.05f, listener = recorder)
+        step(ball, board, seconds = 0.05f, listener = recorder)
         assertEquals(1, recorder.hits.size)
         assertEquals(2L, board[3, 0]?.hits)
     }
@@ -134,17 +144,17 @@ class BallPhysicsTest {
         val board = board().apply { put(3, 2, hits = 1) }
         val recorder = Recorder(board)
         val ball = Ball(x = 3.5f, y = 4f, vx = 0f, vy = -10f)
-        BallPhysics.step(ball, board, config, seconds = 0.2f, listener = recorder)
+        step(ball, board, seconds = 0.2f, listener = recorder)
         assertEquals(null, board[3, 2])
         // Once the brick is gone the ball flies straight through its cell.
         ball.vy = -10f
-        BallPhysics.step(ball, board, config, seconds = 0.2f, listener = recorder)
+        step(ball, board, seconds = 0.2f, listener = recorder)
         assertEquals(1, recorder.hits.size)
         assertTrue(ball.y < 3f)
 
         board[2, 2] = Brick(2, 2, hits = 0)
         val passer = Ball(x = 2.5f, y = 4f, vx = 0f, vy = -10f)
-        BallPhysics.step(passer, board, config, seconds = 0.2f, listener = recorder)
+        step(passer, board, seconds = 0.2f, listener = recorder)
         assertEquals(1, recorder.hits.size)
         assertEquals(-10f, passer.vy)
     }
@@ -155,14 +165,14 @@ class BallPhysicsTest {
         val board = board().apply { put(3, 2) }
         val recorder = Recorder(board)
         val ball = Ball(x = 3f - r * 0.5f, y = 4.5f, vx = 0.5f, vy = -16f)
-        BallPhysics.step(ball, board, config, seconds = 0.1f, listener = recorder)
+        step(ball, board, seconds = 0.1f, listener = recorder)
         assertEquals(listOf(3 to 2), recorder.hits)
         assertEquals(0.5f, ball.vx)
         assertEquals(16f, ball.vy)
 
         // Mostly sideways into the same corner: flips vx only.
         val sideways = Ball(x = 2f, y = 3f + r * 0.5f, vx = 16f, vy = -0.5f)
-        BallPhysics.step(sideways, board, config, seconds = 0.1f, listener = recorder)
+        step(sideways, board, seconds = 0.1f, listener = recorder)
         assertEquals(2, recorder.hits.size)
         assertEquals(-16f, sideways.vx)
         assertEquals(-0.5f, sideways.vy)
@@ -178,7 +188,7 @@ class BallPhysicsTest {
             val cornerX = 3.5f - dx * 0.5f
             val cornerY = 4.5f - dy * 0.5f
             val ball = Ball(x = cornerX - dx * 1.2f, y = cornerY - dy * 1.0f, vx = dx * 12f, vy = dy * 10f)
-            BallPhysics.step(ball, board, config, seconds = 0.15f, listener = recorder)
+            step(ball, board, seconds = 0.15f, listener = recorder)
             assertEquals(1, recorder.hits.size, "corner $dx,$dy")
             val awayX = (ball.x - cornerX) * ball.vx
             val awayY = (ball.y - cornerY) * ball.vy
@@ -194,7 +204,7 @@ class BallPhysicsTest {
         }
         val recorder = Recorder(board)
         val ball = Ball(x = 3f, y = 6f, vx = 0f, vy = -10f)
-        BallPhysics.step(ball, board, config, seconds = 0.3f, listener = recorder)
+        step(ball, board, seconds = 0.3f, listener = recorder)
         assertEquals(listOf(2 to 3, 3 to 3), recorder.hits)
         assertEquals(0f, ball.vx)
         assertEquals(10f, ball.vy)
@@ -211,7 +221,7 @@ class BallPhysicsTest {
                 }
                 val recorder = Recorder(board)
                 val ball = Ball(x = 3f + offset, y = 4f + r + 1e-3f, vx = vx, vy = -17f)
-                BallPhysics.step(ball, board, config, seconds = 0.05f, listener = recorder)
+                step(ball, board, seconds = 0.05f, listener = recorder)
                 assertEquals(1, recorder.hits.size, "offset $offset vx $vx")
                 assertTrue(ball.vy > 0f, "offset $offset vx $vx went through")
                 assertTrue(ball.y > 4f, "offset $offset vx $vx")
@@ -225,7 +235,7 @@ class BallPhysicsTest {
         val board = board().apply { put(0, 2) }
         val recorder = Recorder(board)
         val ball = Ball(x = r + 1f, y = 3f + r + 1f, vx = -10f, vy = -10f)
-        BallPhysics.step(ball, board, config, seconds = 0.15f, listener = recorder)
+        step(ball, board, seconds = 0.15f, listener = recorder)
         assertEquals(listOf(0 to 2), recorder.hits)
         assertEquals(1, recorder.wallBounces)
         assertEquals(10f, ball.vx)
@@ -238,7 +248,7 @@ class BallPhysicsTest {
         }
         val lRecorder = Recorder(lBoard)
         val lBall = Ball(x = 3f + r + 1f, y = 3f + r + 1f, vx = -10f, vy = -10f)
-        BallPhysics.step(lBall, lBoard, config, seconds = 0.15f, listener = lRecorder)
+        step(lBall, lBoard, seconds = 0.15f, listener = lRecorder)
         assertEquals(listOf(3 to 2, 2 to 3), lRecorder.hits)
         assertEquals(10f, lBall.vx)
         assertEquals(10f, lBall.vy)
@@ -250,11 +260,11 @@ class BallPhysicsTest {
         val board = board().apply { put(3, 2, hits = 1_000_000) }
         val recorder = Recorder(board)
         val ball = Ball(x = 3.5f, y = 6f, vx = 0f, vy = -2000f)
-        BallPhysics.step(ball, board, config, listener = recorder)
+        step(ball, board, listener = recorder)
         assertTrue(recorder.hits.isNotEmpty())
         assertTrue(ball.y > 3f, "tunneled to ${ball.y}")
         // Bounced between brick and floor: it landed at the floor without passing the brick.
-        assertTrue(ball.y <= BallPhysics.restingY(config))
+        assertTrue(ball.y <= GridPhysics.restingY(config))
     }
 
     @Test
@@ -273,7 +283,7 @@ class BallPhysicsTest {
             )
             var steps = 0
             while (steps++ < 20) {
-                if (BallPhysics.step(ball, board, config, listener = recorder) == StepOutcome.Landed) break
+                if (step(ball, board, listener = recorder)) break
                 assertTrue(ball.y > 5f, "ball passed the wall at ${ball.x}, ${ball.y}")
             }
         }
@@ -293,14 +303,14 @@ class BallPhysicsTest {
             val angle = config.minAimAngle + random.nextFloat() * (kotlin.math.PI.toFloat() - 2 * config.minAimAngle)
             val ball = Ball(
                 x = 3.5f,
-                y = BallPhysics.restingY(config),
+                y = GridPhysics.restingY(config),
                 vx = cos(angle) * config.ballSpeed,
                 vy = -sin(angle) * config.ballSpeed,
             )
             val startSpeed = speed(ball)
             var steps = 0
             while (steps++ < GameConfig.STEPS_PER_SECOND * 20) {
-                if (BallPhysics.step(ball, board, config, listener = recorder) == StepOutcome.Landed) break
+                if (step(ball, board, listener = recorder)) break
                 assertTrue(abs(speed(ball) - startSpeed) < 1e-3f, "speed drifted")
                 assertTrue(ball.x >= r - eps && ball.x <= config.columns - r + eps, "left the field at ${ball.x}")
                 assertTrue(ball.y >= r - eps, "went through the ceiling at ${ball.y}")
@@ -332,10 +342,10 @@ class BallPhysicsTest {
                 if (random.nextInt(2) == 0) board.put(column, row, hits = 3)
             }
             val recorder = Recorder(board)
-            val ball = Ball(x = 3.5f, y = BallPhysics.restingY(config), vx = 7f, vy = -16.5f)
+            val ball = Ball(x = 3.5f, y = GridPhysics.restingY(config), vx = 7f, vy = -16.5f)
             val trace = mutableListOf<Float>()
             repeat(GameConfig.STEPS_PER_SECOND * 10) {
-                BallPhysics.step(ball, board, config, listener = recorder)
+                step(ball, board, listener = recorder)
                 trace += ball.x
                 trace += ball.y
             }
@@ -348,10 +358,10 @@ class BallPhysicsTest {
     @Test
     fun zeroTimeOrZeroVelocityLeavesTheBallAlone() {
         val ball = Ball(x = 1f, y = 1f, vx = 5f, vy = 5f)
-        BallPhysics.step(ball, board(), config, seconds = 0f)
+        step(ball, board(), seconds = 0f)
         assertEquals(1f, ball.x)
         val still = Ball(x = 1f, y = 1f)
-        assertEquals(StepOutcome.Flying, BallPhysics.step(still, board(), config))
+        assertFalse(step(still, board()))
         assertEquals(1f, still.y)
     }
 }
