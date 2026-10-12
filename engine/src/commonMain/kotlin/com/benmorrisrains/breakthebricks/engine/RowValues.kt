@@ -7,6 +7,15 @@ fun interface RowValues {
     companion object {
         /** Ben's rule: 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, ... by round. */
         val Fibonacci = RowValues { round -> fibonacci(round) }
+
+        /**
+         * Ben's playtest change: Fibonacci divided by 3, rounded up, so values grow more gently:
+         * 1, 1, 1, 1, 2, 3, 5, 7, 12, 19, 30, ... by round. Never below 1.
+         */
+        val FibonacciThirds = RowValues { round ->
+            val value = fibonacci(round)
+            value / 3 + if (value % 3 == 0L) 0 else 1
+        }
     }
 }
 

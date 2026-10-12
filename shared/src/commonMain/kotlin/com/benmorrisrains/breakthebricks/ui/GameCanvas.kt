@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -45,6 +46,7 @@ fun GameCanvas(
     engine: GameEngine,
     frame: LongState,
     flashes: BrickFlashes,
+    abilityCue: AbilityCue,
     modifier: Modifier = Modifier,
     onFire: () -> Unit = {},
     onGameOverTap: () -> Unit = {},
@@ -68,7 +70,7 @@ fun GameCanvas(
         drawBricks(engine, layout, flashes, labels)
         drawFloor(layout)
         if (gesture.isAiming && engine.phase == RoundPhase.Aiming) drawAimLine(engine, layout)
-        drawBalls(engine, layout)
+        drawBalls(engine, layout, abilityCue.isArmed(engine))
         drawBallCounter(engine, layout, labels)
         if (engine.phase == RoundPhase.GameOver) drawGameOver(layout, labels)
     }
@@ -175,22 +177,34 @@ private fun DrawScope.drawAimLine(engine: GameEngine, layout: FieldLayout) {
     drawLine(NeonPalette.Ink, from, to, strokeWidth = r * 0.45f, cap = StrokeCap.Round)
 }
 
-private fun DrawScope.drawBalls(engine: GameEngine, layout: FieldLayout) {
+/** Balls are white; while [grenadeArmed], the round's first ball is the orange grenade. */
+private fun DrawScope.drawBalls(engine: GameEngine, layout: FieldLayout, grenadeArmed: Boolean) {
     val config = engine.config
+    val grenade = engine.balls.firstOrNull()?.takeIf { grenadeArmed }
     for (ball in engine.balls) {
+        val color = if (ball === grenade) NeonPalette.Orange else NeonPalette.Ink
         when (ball.state) {
-            BallState.Flying -> drawBall(ball.x, ball.y, layout, config, trailOf = ball)
-            BallState.Landed -> drawBall(ball.x, ball.y, layout, config)
+            BallState.Flying -> drawBall(ball.x, ball.y, layout, config, color, trailOf = ball)
+            BallState.Landed -> drawBall(ball.x, ball.y, layout, config, NeonPalette.Ink)
             BallState.Waiting -> Unit
         }
     }
     // Balls still waiting to leave all sit on the launch point, so one is drawn for them.
     if (engine.phase == RoundPhase.Aiming || engine.balls.any { it.state == BallState.Waiting }) {
-        drawBall(engine.launchX, config.rows - config.ballRadius, layout, config)
+        val nextIsGrenade = grenadeArmed && (engine.phase == RoundPhase.Aiming || grenade?.state == BallState.Waiting)
+        val color = if (nextIsGrenade) NeonPalette.Orange else NeonPalette.Ink
+        drawBall(engine.launchX, config.rows - config.ballRadius, layout, config, color)
     }
 }
 
-private fun DrawScope.drawBall(x: Float, y: Float, layout: FieldLayout, config: GameConfig, trailOf: Ball? = null) {
+private fun DrawScope.drawBall(
+    x: Float,
+    y: Float,
+    layout: FieldLayout,
+    config: GameConfig,
+    color: Color,
+    trailOf: Ball? = null,
+) {
     val r = config.ballRadius * layout.cell
     val center = Offset(layout.toScreenX(x), layout.toScreenY(y))
     if (trailOf != null) {
@@ -198,15 +212,15 @@ private fun DrawScope.drawBall(x: Float, y: Float, layout: FieldLayout, config: 
         if (speed > 0f) {
             val tail = center - Offset(trailOf.vx / speed, trailOf.vy / speed) * (r * 3.5f)
             val brush = Brush.linearGradient(
-                listOf(NeonPalette.Ink.copy(alpha = 0f), NeonPalette.Ink.copy(alpha = 0.35f)),
+                listOf(color.copy(alpha = 0f), color.copy(alpha = 0.35f)),
                 start = tail,
                 end = center,
             )
             drawLine(brush, tail, center, strokeWidth = r * 1.4f, cap = StrokeCap.Round)
         }
     }
-    drawCircle(NeonPalette.Ink.copy(alpha = 0.18f), radius = r * 2f, center = center)
-    drawCircle(NeonPalette.Ink, radius = r, center = center)
+    drawCircle(color.copy(alpha = 0.18f), radius = r * 2f, center = center)
+    drawCircle(color, radius = r, center = center)
 }
 
 /** "x12" under the floor by the launch point: balls left to fire this round. */

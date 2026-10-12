@@ -81,9 +81,63 @@ class AimTest {
     fun draggingBackAboveTheFloorResumesAiming() {
         val engine = newGame()
         val gesture = AimGesture(engine)
-        gesture.press(engine.launchX, floor + 0.3f)
+        gesture.press(engine.launchX, 3f)
+        gesture.move(engine.launchX, floor + 0.3f)
         gesture.move(engine.launchX - 1f, 4f)
         assertTrue(gesture.release())
+    }
+
+    @Test
+    fun pullingStraightDownFromBelowTheFloorAimsStraightUp() {
+        assertEquals(PI.toFloat() / 2, pullBackAngle(2f, 9.5f, 2f, 10.5f, min)!!, 1e-5f)
+    }
+
+    @Test
+    fun pullingDownAndLeftAimsUpAndRight() {
+        assertEquals(PI.toFloat() / 4, pullBackAngle(3f, 9.5f, 2f, 10.5f, min)!!, 1e-5f)
+        assertEquals(3 * PI.toFloat() / 4, pullBackAngle(3f, 9.5f, 4f, 10.5f, min)!!, 1e-5f)
+    }
+
+    @Test
+    fun aTinyOrUpwardPullDoesNotAim() {
+        assertNull(pullBackAngle(3f, 9.5f, 3.1f, 9.6f, min))
+        assertNull(pullBackAngle(3f, 9.5f, 2f, 9.2f, min))
+        assertNull(pullBackAngle(3f, 9.5f, 2f, 9.5f, min))
+    }
+
+    @Test
+    fun slingshotFromBelowTheFloorFiresOppositeThePull() {
+        val engine = newGame()
+        val gesture = AimGesture(engine)
+        // Pressing below the floor doesn't aim until the finger pulls past the dead zone.
+        gesture.press(1f, floor + 0.5f)
+        assertFalse(gesture.isAiming)
+        gesture.move(0f, floor + 1.5f)
+        assertTrue(gesture.isAiming)
+        assertEquals(PI.toFloat() / 4, engine.aimAngle, 1e-5f)
+        assertTrue(gesture.release())
+        assertEquals(RoundPhase.Firing, engine.phase)
+    }
+
+    @Test
+    fun aTapBelowTheFloorDoesNotFire() {
+        val engine = newGame()
+        val gesture = AimGesture(engine)
+        gesture.press(1f, floor + 0.5f)
+        assertFalse(gesture.release())
+        assertEquals(RoundPhase.Aiming, engine.phase)
+    }
+
+    @Test
+    fun pullingBackUpPastThePressPointCancelsTheSlingshot() {
+        val engine = newGame()
+        val gesture = AimGesture(engine)
+        gesture.press(1f, floor + 0.5f)
+        gesture.move(0f, floor + 1.5f)
+        gesture.move(1f, floor + 0.2f)
+        assertFalse(gesture.isAiming)
+        assertFalse(gesture.release())
+        assertEquals(RoundPhase.Aiming, engine.phase)
     }
 
     @Test

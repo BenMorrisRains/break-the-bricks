@@ -5,6 +5,7 @@ import com.benmorrisrains.breakthebricks.engine.RoundPhase
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.sin
 
 /**
@@ -27,21 +28,49 @@ fun aimAngleTo(launchX: Float, floorY: Float, touchX: Float, touchY: Float, minA
     return atan2(up, touchX - launchX).coerceIn(minAngle, PI.toFloat() - minAngle)
 }
 
+/**
+ * How far in cells a finger must pull from where it pressed below the floor before the
+ * slingshot aims, so a plain tap there never fires.
+ */
+const val PULL_DEAD_ZONE_CELLS = 0.25f
+
+/**
+ * Slingshot aim for a finger that pressed below the floor at ([anchorX], [anchorY]) and is
+ * now at ([touchX], [touchY]): the ball goes the opposite way to the pull, so pulling down
+ * and left aims up and right. Clamped like [aimAngleTo]. Null inside the dead zone or when
+ * the pull isn't downward, which cancels the shot.
+ */
+fun pullBackAngle(anchorX: Float, anchorY: Float, touchX: Float, touchY: Float, minAngle: Float): Float? {
+    val up = touchY - anchorY
+    val across = anchorX - touchX
+    if (up <= 0f || hypot(across, up) < PULL_DEAD_ZONE_CELLS) return null
+    return atan2(up, across).coerceIn(minAngle, PI.toFloat() - minAngle)
+}
+
 /** Far end of the aim line drawn from the launch point. */
 fun aimLineEnd(launchX: Float, floorY: Float, angle: Float, length: Float = AIM_LINE_CELLS): WorldPoint =
     WorldPoint(launchX + cos(angle) * length, floorY - sin(angle) * length)
 
 /**
- * Drag-to-aim. Pressing or dragging points the aim at the finger; lifting fires. Dragging to
- * or below the floor cancels, and lifting there does nothing; dragging back above resumes.
+ * Drag-to-aim, two ways; lifting fires either way.
+ * - Press above the floor: the aim points at the finger. Dragging to or below the floor
+ *   cancels, and lifting there does nothing; dragging back above resumes.
+ * - Press below the floor (Ben's playtest ask, so the finger doesn't cover the aim line):
+ *   slingshot, see [pullBackAngle]. Pulling back up past the press point cancels.
  * Only acts while the engine is in [RoundPhase.Aiming]. Positions are in world cells.
  */
 class AimGesture(private val engine: GameEngine) {
-    /** True while a finger is down above the floor and the aim line should show. */
+    /** True while the finger's position gives a valid aim and the aim line should show. */
     var isAiming: Boolean = false
         private set
 
-    fun press(x: Float, y: Float) = move(x, y)
+    /** Where a slingshot press started, or null when the press was above the floor. */
+    private var anchor: WorldPoint? = null
+
+    fun press(x: Float, y: Float) {
+        anchor = if (y > engine.config.rows) WorldPoint(x, y) else null
+        move(x, y)
+    }
 
     fun move(x: Float, y: Float) {
         if (engine.phase != RoundPhase.Aiming) {
@@ -49,7 +78,12 @@ class AimGesture(private val engine: GameEngine) {
             return
         }
         val config = engine.config
-        val angle = aimAngleTo(engine.launchX, config.rows.toFloat(), x, y, config.minAimAngle)
+        val start = anchor
+        val angle = if (start != null) {
+            pullBackAngle(start.x, start.y, x, y, config.minAimAngle)
+        } else {
+            aimAngleTo(engine.launchX, config.rows.toFloat(), x, y, config.minAimAngle)
+        }
         isAiming = angle != null
         if (angle != null) engine.aim(angle)
     }
