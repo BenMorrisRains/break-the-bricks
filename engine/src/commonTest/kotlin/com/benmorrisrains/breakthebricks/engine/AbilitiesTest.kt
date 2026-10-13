@@ -361,6 +361,31 @@ class AbilitiesTest {
     }
 
     @Test
+    fun bigBallAndSplitterNeverCombine() {
+        // Ben (2026-10-13): one power-up at a time, never a chain of them.
+        val game = gameWith(listOf(BigBall, Splitter), GridPhysics, Triple(3, 2, 500L))
+        var mostBalls = 0
+        var biggest = 0f
+        playRound(game, straightUp) {
+            // The step that ends the round also sets up the next one's extra ball.
+            if (game.phase != RoundPhase.Aiming) mostBalls = maxOf(mostBalls, game.balls.size)
+            biggest = maxOf(biggest, game.balls.maxOf { it.size })
+        }
+        assertEquals(1, mostBalls, "the big ball doesn't split")
+        assertEquals(BigBall.SIZE, biggest)
+        game.selectAbility(Splitter.id)
+        mostBalls = 0
+        biggest = 0f
+        playRound(game, straightUp) {
+            // The step that ends the round also sets up the next one's extra ball.
+            if (game.phase != RoundPhase.Aiming) mostBalls = maxOf(mostBalls, game.balls.size)
+            biggest = maxOf(biggest, game.balls.maxOf { it.size })
+        }
+        assertEquals(4, mostBalls, "round 2's two balls plus two split off the first")
+        assertEquals(1f, biggest, "the split balls and the first ball are normal size")
+    }
+
+    @Test
     fun thePickCanOnlyChangeWhileAiming() {
         val game = gameWith(listOf(BigBall, Drill), DropPhysics { 3.5f })
         game.fire()
