@@ -1,8 +1,10 @@
 package com.benmorrisrains.breakthebricks.ui
 
+import com.benmorrisrains.breakthebricks.engine.Drill
 import com.benmorrisrains.breakthebricks.engine.FreeLevels
 import com.benmorrisrains.breakthebricks.engine.GridPhysics
 import com.benmorrisrains.breakthebricks.engine.Level
+import com.benmorrisrains.breakthebricks.engine.PaidLevels
 import com.benmorrisrains.breakthebricks.engine.RoundPhase
 import com.benmorrisrains.breakthebricks.platform.InMemoryStore
 import kotlin.test.Test
@@ -18,7 +20,7 @@ class LevelProgressTest {
 
     @Test
     fun onlyLevelOneIsOpenAtFirst() {
-        assertEquals(10, progress.levels.size)
+        assertEquals(30, progress.levels.size)
         assertTrue(progress.isUnlocked(1))
         assertFalse(progress.isUnlocked(2))
         assertEquals(0, progress.totalStars)
@@ -42,6 +44,36 @@ class LevelProgressTest {
         assertEquals(3, progress.totalStars)
         // Saved, so a new LevelProgress on the same store sees it.
         assertEquals(3, LevelProgress(store).stars(1))
+    }
+
+    @Test
+    fun paidLevelsStayLockedUntilTheyAreOpened() {
+        for (number in 1..10) progress.record(FreeLevels[number], passed = true, round = 1, points = 1)
+        assertTrue(progress.isUnlocked(10))
+        assertFalse(progress.isUnlocked(11), "level 11 is paid and nothing has opened it")
+        assertTrue(progress.isPaidLocked(11))
+        assertFalse(progress.isPaidLocked(10))
+
+        var open = false
+        val paid = LevelProgress(store, paidLevelsOpen = { open })
+        assertFalse(paid.isUnlocked(PaidLevels[11]))
+        open = true
+        assertTrue(paid.isUnlocked(PaidLevels[11]), "opened, and level 10 is passed")
+        assertFalse(paid.isPaidLocked(11))
+        assertFalse(paid.isUnlocked(12), "level 11 isn't passed yet")
+    }
+
+    @Test
+    fun levelIntrosShowBeforeTheFirstShotAndNameALentPowerUp() {
+        val drillLevel = PaidLevels.all.first { it.power == Drill }
+        val game = drillLevel.newGame(GridPhysics)
+        val intro = levelIntro(game, drillLevel)
+        assertEquals(IntroCard("LEVEL ${drillLevel.number}", drillLevel.name.uppercase(), "TRY THE DRILL BALL: IT'S YOURS THIS LEVEL"), intro)
+        assertEquals("BREAK EVERY BRICK", levelIntro(one.newGame(GridPhysics), one)?.hint)
+        assertNull(levelIntro(game, null), "no intro in free play")
+        game.aim(1.2f)
+        game.fire()
+        assertNull(levelIntro(game, drillLevel), "gone once the first shot is away")
     }
 
     @Test

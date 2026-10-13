@@ -88,6 +88,7 @@ fun GameCanvas(
             drawBallCounter(engine, layout, labels)
             effects?.let { drawSparks(it, layout) }
         }
+        if (!gesture.isAiming) levelIntro(engine, level)?.let { drawIntroCard(it, layout, labels) }
         finishCard(engine, level)?.let { drawFinishCard(it, layout, labels) }
     }
 }
@@ -295,6 +296,21 @@ private fun DrawScope.drawFinishCard(card: FinishCard, layout: FieldLayout, labe
     }
     val hint = labels.get(this, card.hint, layout.cell * 0.22f)
     drawText(hint, NeonPalette.Cyan, Offset(center.x - hint.size.width / 2f, top))
+}
+
+/** A level's name and hint in the field's empty middle before the first shot; it hides while the player aims. */
+private fun DrawScope.drawIntroCard(card: IntroCard, layout: FieldLayout, labels: LabelCache) {
+    val centerX = layout.originX + layout.fieldWidth / 2
+    var top = layout.originY + (layout.floorY - layout.originY) * 0.55f
+    for ((text, size, color) in listOf(
+        Triple(card.title, 0.45f, NeonPalette.Magenta),
+        Triple(card.name, 0.3f, NeonPalette.Ink),
+        Triple(card.hint, 0.22f, NeonPalette.Cyan),
+    )) {
+        val label = labels.get(this, text, layout.cell * size)
+        drawText(label, color, Offset(centerX - label.size.width / 2f, top))
+        top += label.size.height + layout.cell * 0.15f
+    }
 }
 
 /**
