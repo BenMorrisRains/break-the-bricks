@@ -114,7 +114,7 @@ class GameSessionTest {
         engines.last().apply { points = 250; round = 12; phase = RoundPhase.GameOver }
         session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 12, points = 250)))
         assertEquals(
-            GameResult(round = 12, points = 250, bestPoints = 250, isNewBest = true, rankUp = RankUp(from = 1, to = 3)),
+            GameResult(round = 12, points = 250, bestPoints = 250, isNewBest = true),
             session.result,
         )
 
@@ -212,23 +212,23 @@ class GameSessionTest {
 
     @Test
     fun gamePointsCountTowardRankAndTheNextGameUsesTheNewRank() {
-        store.putLong(RankStore.POINTS_KEY, 30)
+        store.putLong(RankStore.POINTS_KEY, 300)
         val engines = mutableListOf<FakeEngine>()
         val session = session(engines)
         assertEquals(listOf(1), ranks)
-        assertHud(1, 30f / 50f, session.hudRank(0))
-        assertHud(1, 40f / 50f, session.hudRank(10), "the bar fills live")
-        assertHud(1, 1f, session.hudRank(200), "the rank waits for the game to end")
+        assertHud(1, 300f / 500f, session.hudRank(0))
+        assertHud(1, 400f / 500f, session.hudRank(100), "the bar fills live")
+        assertHud(1, 1f, session.hudRank(2000), "the rank waits for the game to end")
 
-        engines.last().apply { points = 200; phase = RoundPhase.GameOver }
-        session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 8, points = 200)))
-        session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 8, points = 200)))
-        assertEquals(230, store.getLong(RankStore.POINTS_KEY, 0), "a game's points count once")
+        engines.last().apply { points = 2000; phase = RoundPhase.GameOver }
+        session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 8, points = 2000)))
+        session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 8, points = 2000)))
+        assertEquals(2300, store.getLong(RankStore.POINTS_KEY, 0), "a game's points count once")
         assertEquals(3, store.getLong(RankStore.RANK_KEY, 0))
         assertEquals(RankUp(from = 1, to = 3), session.rankUp)
         assertEquals(RankUp(from = 1, to = 3), session.result?.rankUp)
-        assertEquals(RankProgress(rank = 3, pointsIntoRank = 80, pointsForNextRank = 150), session.rankProgress())
-        assertHud(3, 80f / 150f, session.hudRank(200))
+        assertEquals(RankProgress(rank = 3, pointsIntoRank = 800, pointsForNextRank = 1500), session.rankProgress())
+        assertHud(3, 800f / 1500f, session.hudRank(2000))
 
         session.newGame()
         assertEquals(listOf(1, 3), ranks)
@@ -241,9 +241,9 @@ class GameSessionTest {
         val engines = mutableListOf<FakeEngine>()
         val session = GameSession(services, newEngine = { _, _, _ -> FakeEngine() }, newLevelEngine = { FakeEngine().also { engines += it } })
         session.newGame(FreeLevels[1])
-        engines.last().apply { points = 60; phase = RoundPhase.GameOver }
-        session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 3, points = 60)))
-        assertEquals(PlayerRank(60), session.playerRank)
+        engines.last().apply { points = 600; phase = RoundPhase.GameOver }
+        session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 3, points = 600)))
+        assertEquals(PlayerRank(600), session.playerRank)
         assertEquals(RankUp(from = 1, to = 2), session.result?.rankUp)
     }
 
@@ -252,8 +252,8 @@ class GameSessionTest {
         val engines = mutableListOf<FakeEngine>()
         val session = session(engines)
         engines.last().phase = RoundPhase.GameOver
-        session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 3, points = 20)))
+        session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 3, points = 200)))
         assertNull(session.rankUp)
-        assertEquals(PlayerRank(20), session.playerRank)
+        assertEquals(PlayerRank(200), session.playerRank)
     }
 }
