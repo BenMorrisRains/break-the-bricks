@@ -80,6 +80,9 @@ class EarnedCardsTest {
 
     @Test
     fun abilitiesHavePlayerFacingNames() {
+        assertEquals("BIG BALL", abilityName(AbilityIds.BIG_BALL))
+        assertEquals("SPLITTER BALL", abilityName(AbilityIds.SPLITTER))
+        assertEquals("DRILL BALL", abilityName(AbilityIds.DRILL))
         assertEquals("GRENADE BALL", abilityName(GrenadeBall.id))
         assertEquals("LASER BALL", abilityName("laser"))
     }

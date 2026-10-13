@@ -5,10 +5,24 @@ import com.benmorrisrains.breakthebricks.engine.Ability
 import com.benmorrisrains.breakthebricks.engine.GameEvent
 import com.benmorrisrains.breakthebricks.engine.GrenadeBall
 
+/**
+ * Ids of the abilities in Ben's lineup (2026-10-13): big ball at round 5, splitter at 10, drill
+ * at 20 and the grenade at 30. The engine's abilities must use these ids to get their looks.
+ */
+object AbilityIds {
+    const val BIG_BALL = "big_ball"
+    const val SPLITTER = "splitter"
+    const val DRILL = "drill"
+    val GRENADE = GrenadeBall.id
+}
+
 /** The name players see for an ability: "GRENADE BALL". */
 fun abilityName(abilityId: String): String = when (abilityId) {
-    GrenadeBall.id -> "GRENADE BALL"
-    else -> "${abilityId.uppercase()} BALL"
+    AbilityIds.BIG_BALL -> "BIG BALL"
+    AbilityIds.SPLITTER -> "SPLITTER BALL"
+    AbilityIds.DRILL -> "DRILL BALL"
+    AbilityIds.GRENADE -> "GRENADE BALL"
+    else -> "${abilityId.uppercase().replace('_', ' ')} BALL"
 }
 
 /** Abilities a game that got to [reachedRound] did not earn, soonest first, to show off as locked. */

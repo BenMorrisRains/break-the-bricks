@@ -90,6 +90,9 @@ internal fun DrawScope.drawAbilityIcon(abilityId: String, center: Offset, side: 
     when (abilityId) {
         // The grenade with its glow spans about 2.2 times its body scale; see drawGrenade.
         GrenadeBall.id -> drawGrenade(center, r = side / 2.4f / 2.5f, silhouette = silhouette)
+        AbilityIds.BIG_BALL -> drawBigBall(center, side * 0.34f, silhouette)
+        AbilityIds.SPLITTER -> drawSplitter(center, side, silhouette)
+        AbilityIds.DRILL -> drawDrill(center, side * 0.22f, silhouette)
         else -> {
             val color = if (silhouette) NeonPalette.Dim else NeonPalette.Purple
             drawCircle(color.copy(alpha = 0.3f), radius = side * 0.45f, center = center)
@@ -98,16 +101,20 @@ internal fun DrawScope.drawAbilityIcon(abilityId: String, center: Offset, side: 
     }
 }
 
-/**
- * One frame of an ability's short looping preview clip, [time] seconds in, filling the draw
- * area. The grenade's: a grenade flies up into a tough brick and blows it away.
- */
+/** One frame of an ability's short looping preview clip, [time] seconds in, filling the draw area. */
 internal fun DrawScope.drawAbilityPreview(abilityId: String, time: Float) {
-    if (abilityId != GrenadeBall.id) {
-        val bob = sin(time * 3f) * size.minDimension * 0.05f
-        drawAbilityIcon(abilityId, Offset(size.width / 2, size.height / 2 + bob), size.minDimension * 0.6f)
-        return
+    when (abilityId) {
+        GrenadeBall.id -> drawGrenadePreview(time)
+        AbilityIds.BIG_BALL, AbilityIds.SPLITTER, AbilityIds.DRILL -> drawPlaceholderPreview(abilityId, time)
+        else -> {
+            val bob = sin(time * 3f) * size.minDimension * 0.05f
+            drawAbilityIcon(abilityId, Offset(size.width / 2, size.height / 2 + bob), size.minDimension * 0.6f)
+        }
     }
+}
+
+/** The grenade flies up into a tough brick and blows it away. */
+private fun DrawScope.drawGrenadePreview(time: Float) {
     val t = time % PREVIEW_LOOP
     val cell = minOf(size.width / 3f, size.height / 3.2f)
     val brickSide = cell * 0.9f
@@ -166,6 +173,87 @@ internal fun DrawScope.drawAbilityPreview(abilityId: String, time: Float) {
             drawRect((if (i % 2 == 0) NeonPalette.Ink else NeonPalette.Orange).copy(alpha = fade), shard - Offset(side / 2, side / 2), Size(side, side))
         }
     }
+}
+
+/**
+ * Placeholder looks for the big ball, splitter and drill until their full showcase effects
+ * follow the engine work: simple neon shapes, nothing more.
+ */
+private fun DrawScope.drawBigBall(center: Offset, r: Float, silhouette: Boolean) {
+    val color = if (silhouette) NeonPalette.Dim else NeonPalette.Ink
+    if (!silhouette) drawCircle(NeonPalette.Cyan.copy(alpha = 0.25f), radius = r * 1.5f, center = center)
+    drawCircle(color, radius = r, center = center)
+}
+
+/** Three small balls fanning out from one point. */
+private fun DrawScope.drawSplitter(center: Offset, side: Float, silhouette: Boolean) {
+    val color = if (silhouette) NeonPalette.Dim else NeonPalette.Cyan
+    val r = side * 0.12f
+    val origin = center + Offset(0f, side * 0.28f)
+    for (angle in listOf(-0.6f, 0f, 0.6f)) {
+        val dir = Offset(sin(angle), -cos(angle))
+        val ball = origin + dir * (side * 0.5f)
+        drawLine(color.copy(alpha = 0.5f), origin, ball, strokeWidth = r * 0.6f, cap = StrokeCap.Round)
+        drawCircle(color, radius = r, center = ball)
+    }
+}
+
+/** A ball with a drill point on top. */
+private fun DrawScope.drawDrill(center: Offset, r: Float, silhouette: Boolean) {
+    val color = if (silhouette) NeonPalette.Dim else NeonPalette.Yellow
+    val ball = center + Offset(0f, r * 0.8f)
+    val tip = Path().apply {
+        moveTo(ball.x - r, ball.y)
+        lineTo(ball.x, ball.y - r * 3f)
+        lineTo(ball.x + r, ball.y)
+        close()
+    }
+    drawPath(tip, color.copy(alpha = if (silhouette) 1f else 0.35f))
+    drawPath(tip, color, style = Stroke(width = maxOf(1.5f, r * 0.25f)))
+    drawCircle(color, radius = r, center = ball)
+}
+
+/**
+ * A simple loop for the placeholder abilities: the ball flies up a column of bricks. The big
+ * ball pops the first brick, the splitter splits into three on it, the drill goes through three.
+ */
+private fun DrawScope.drawPlaceholderPreview(abilityId: String, time: Float) {
+    val t = time % PREVIEW_LOOP
+    val cell = minOf(size.width / 3f, size.height / 4f)
+    val brickSide = cell * 0.85f
+    val x = size.width / 2
+    val rows = if (abilityId == AbilityIds.DRILL) 3 else 1
+    val topY = size.height * 0.08f
+    val k = (t / PREVIEW_HIT).coerceAtMost(1f)
+    val startY = size.height - cell * 0.4f
+    val firstHitY = topY + rows * cell
+    // How far up the ball has got; the drill keeps going through its bricks.
+    val reach = if (abilityId == AbilityIds.DRILL) topY else firstHitY
+    val y = startY + (reach - startY) * k
+    for (i in 0 until rows) {
+        val rowY = topY + i * cell
+        val broken = y <= rowY + cell
+        val alpha = when {
+            !broken -> 1f
+            t > PREVIEW_RESPAWN -> (t - PREVIEW_RESPAWN) / (PREVIEW_LOOP - PREVIEW_RESPAWN)
+            else -> 0f
+        }
+        if (alpha <= 0f) continue
+        val topLeft = Offset(x - brickSide / 2, rowY + (cell - brickSide) / 2)
+        drawRect(NeonPalette.Lime.copy(alpha = alpha), topLeft, Size(brickSide, brickSide), style = Stroke(width = cell * 0.05f))
+    }
+    if (t >= PREVIEW_RESPAWN) return
+    val r = cell * if (abilityId == AbilityIds.BIG_BALL) 0.24f else 0.12f
+    if (abilityId == AbilityIds.SPLITTER && t > PREVIEW_HIT) {
+        val e = (t - PREVIEW_HIT) / (PREVIEW_RESPAWN - PREVIEW_HIT)
+        for (angle in listOf(-0.7f, 0f, 0.7f)) {
+            val dir = Offset(sin(angle), cos(angle))
+            drawCircle(NeonPalette.Cyan.copy(alpha = 1f - e), radius = r, center = Offset(x, firstHitY) + dir * (cell * 2.2f * e))
+        }
+        return
+    }
+    val ballY = if (t > PREVIEW_HIT) reach + (startY - reach) * ((t - PREVIEW_HIT) / (PREVIEW_RESPAWN - PREVIEW_HIT)) else y
+    drawAbilityIcon(abilityId, Offset(x, ballY), r * if (abilityId == AbilityIds.BIG_BALL) 2.9f else 4.5f)
 }
 
 private const val PREVIEW_LOOP = 1.8f
