@@ -17,11 +17,14 @@ class PaidLevelsTest {
         assertTrue(FreeLevels.all.none { it.isPaid })
     }
 
-    /** Claude's default (T18): a few levels lend one power-up each, and every power-up gets one. */
+    /**
+     * Claude's default (T18): a few levels lend one power-up each. The first four of the lineup
+     * each get one; ghost ball, time freeze and the 5-way splitter (PR #31) have none yet.
+     */
     @Test
-    fun eachPowerUpHasAShowcaseLevel() {
+    fun theFirstFourPowerUpsHaveAShowcaseLevel() {
         val showcases = PaidLevels.all.filter { it.power != null }
-        assertEquals(Abilities.earnable, showcases.map { it.power })
+        assertEquals(listOf(BigBall, Splitter, Drill, GrenadeBall), showcases.map { it.power })
         assertTrue(FreeLevels.all.none { it.power != null })
     }
 
