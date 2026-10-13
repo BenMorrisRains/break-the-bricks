@@ -14,7 +14,9 @@ fun interface BallPhysics {
      *
      * The ball is a circle of [Ball.radius]. While [Ball.pierce] is above 0 it passes through the
      * bricks it hits instead of bouncing, taking 1 off [Ball.pierce] per brick, and is not hit
-     * again by a brick it is still inside.
+     * again by a brick it is still inside. A [Ball.ghost] ball passes through every brick it hits
+     * until it is clear of them all, then stops being a ghost. A ball that [Ball.exitsAtCeiling]
+     * reports [BallContacts.exited] on reaching the ceiling and stops there.
      *
      * Returns true when the ball reaches the floor (its bottom edge touches y = [GameConfig.rows]
      * while moving down), with [Ball.x] at the landing point. The engine then sets the ball's y,
@@ -27,4 +29,7 @@ fun interface BallPhysics {
 interface BallContacts {
     fun brickHit(column: Int, row: Int)
     fun wallBounce()
+
+    /** The ball reached the ceiling and left the field (only a ball that [Ball.exitsAtCeiling]). */
+    fun exited() {}
 }

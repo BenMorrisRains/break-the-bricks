@@ -52,6 +52,9 @@ object GridPhysics : BallPhysics {
      * long as it has enough left for every brick in that contact; otherwise it bounces as usual.
      * The bricks it passes through stay see-through to it until it is clear of all of them, so each
      * is hit once and a ball that runs out inside a stack of bricks can't be trapped bouncing there.
+     * A [Ball.ghost] ball passes through any number of bricks this way and stops being a ghost once
+     * it is clear of them. A ball that [Ball.exitsAtCeiling] stops at the ceiling and reports
+     * [BallContacts.exited] instead of bouncing.
      *
      * Returns true when the ball lands; it then rests at [restingY] with zero velocity. Physics never
      * changes the board or [Ball.state].
@@ -67,12 +70,14 @@ object GridPhysics : BallPhysics {
         ball.vx = sweep.vx.toFloat()
         ball.vy = sweep.vy.toFloat()
         ball.pierce = sweep.pierce
+        ball.ghost = sweep.ghost
         return landed
     }
 
     private const val WALL = 0
     private const val FLOOR = 1
     private const val BRICK = 2
+    private const val CEILING = 3
 
     /**
      * One ball's step through the field. It is reused from step to step, and keeps the contacts
@@ -92,12 +97,15 @@ object GridPhysics : BallPhysics {
             private set
         var pierce = 0
             private set
+        var ghost = false
+            private set
+        private var exitsAtCeiling = false
         private var width = 0.0
         private var floorY = 0.0
 
         /**
          * The contacts at the earliest moment found so far: [count] of them, each with its time,
-         * axis normal (nx, ny) pointing out of the surface, surface ([WALL], [FLOOR] or [BRICK]) and,
+         * axis normal (nx, ny) pointing out of the surface, surface ([WALL], [CEILING], [FLOOR] or [BRICK]) and,
          * for a brick, its cell index (row * columns + column, so cell order is row then column).
          */
         private var count = 0
@@ -124,6 +132,8 @@ object GridPhysics : BallPhysics {
             vx = ball.vx.toDouble()
             vy = ball.vy.toDouble()
             pierce = ball.pierce
+            ghost = ball.ghost
+            exitsAtCeiling = ball.exitsAtCeiling
             width = board.columns.toDouble()
             floorY = board.rows - radius
         }
@@ -156,10 +166,16 @@ object GridPhysics : BallPhysics {
                     ball.y = y.toFloat()
                 }
                 for (i in 0 until hitCount) contacts.brickHit(bricksHit[i] % board.columns, bricksHit[i] / board.columns)
-                if (anyOn(WALL)) contacts.wallBounce()
-                val passThrough = hitCount > 0 && pierce >= hitCount
+                if (exitsAtCeiling && anyOn(CEILING)) {
+                    vx = 0.0
+                    vy = 0.0
+                    contacts.exited()
+                    return false
+                }
+                if (anyOn(WALL) || anyOn(CEILING)) contacts.wallBounce()
+                val passThrough = hitCount > 0 && (ghost || pierce >= hitCount)
                 if (passThrough) {
-                    pierce -= hitCount
+                    if (!ghost) pierce -= hitCount
                     for (i in 0 until hitCount) inside += bricksHit[i]
                 }
 
@@ -252,7 +268,7 @@ object GridPhysics : BallPhysics {
         private fun findBoundaryContacts(remaining: Double) {
             if (vx < 0.0) addPlane((radius - x) / vx, 1, 0, WALL, remaining)
             if (vx > 0.0) addPlane((width - radius - x) / vx, -1, 0, WALL, remaining)
-            if (vy < 0.0) addPlane((radius - y) / vy, 0, 1, WALL, remaining)
+            if (vy < 0.0) addPlane((radius - y) / vy, 0, 1, CEILING, remaining)
             if (vy > 0.0) addPlane((floorY - y) / vy, 0, -1, FLOOR, remaining)
         }
 
@@ -292,7 +308,11 @@ object GridPhysics : BallPhysics {
                 val dy = y - y.coerceIn(row.toDouble(), row + 1.0)
                 board[column, row] != null && dx * dx + dy * dy < reach * reach
             }
-            if (!stillIn) inside.clear()
+            if (!stillIn) {
+                inside.clear()
+                // A ghost is solid again once it is through.
+                ghost = false
+            }
         }
 
         private fun sweepBrick(cell: Int, left: Double, top: Double, remaining: Double) {

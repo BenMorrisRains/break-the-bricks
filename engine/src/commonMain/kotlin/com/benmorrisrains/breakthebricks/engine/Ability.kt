@@ -9,7 +9,7 @@ interface Ability {
     /** Stable id stored in the player's inventory, e.g. "grenade". */
     val id: String
 
-    /** Round at which a game earns this ability (Ben's lineup: big ball 5, splitter 10, drill 20, grenade 30). */
+    /** Round at which a game earns this ability (Ben's lineup: big ball 5, splitter 10, drill 20, grenade 30; then ghost 40, time freeze 50, 5-way splitter 60). */
     val earnedAtRound: Int
 
     /** Round a wagered copy must reach to be kept. */
@@ -17,7 +17,8 @@ interface Ability {
 
     /**
      * Called as the round's first ball leaves the launch point, before it moves. An ability may
-     * change that ball's [Ball.size] or [Ball.pierce]; both last until it lands.
+     * change that ball's [Ball.size], [Ball.pierce], [Ball.ghost] or [Ball.exitsAtCeiling]; they
+     * last until it lands or leaves.
      */
     fun onFirstLaunch(context: AbilityContext, ball: Ball) {}
 
@@ -48,9 +49,15 @@ interface AbilityContext {
      * fan out. The new balls fly for this round only.
      */
     fun splitFirstBall(extraBalls: Int, maxTurnRadians: Float)
+
+    /**
+     * Slows play to [timeScale] of normal speed for [steps] fixed steps; while it lasts the player
+     * may [GameEngine.redirect] the flying balls once, which ends it. It ends with the round.
+     */
+    fun freezeTime(steps: Int, timeScale: Float)
 }
 
 /** Abilities a game can earn by reaching their [Ability.earnedAtRound], in round order. */
 object Abilities {
-    val earnable: List<Ability> = listOf(BigBall, Splitter, Drill, GrenadeBall)
+    val earnable: List<Ability> = listOf(BigBall, Splitter, Drill, GrenadeBall, GhostBall, TimeFreeze, SplitterFive)
 }

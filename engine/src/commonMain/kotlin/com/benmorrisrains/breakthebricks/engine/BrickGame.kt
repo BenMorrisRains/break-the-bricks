@@ -16,8 +16,8 @@ import kotlin.math.sqrt
  *
  * A round goes Aiming -> Firing -> Returning -> Advancing -> Aiming, or ends in GameOver
  * (a brick reached the floor row) or LevelComplete (a level's last row came and every brick is broken).
- * Nothing moves while Aiming, so a game depends only on [seed] and the angle and ability fired
- * each round, never on frame timing.
+ * Nothing moves while Aiming, so a game depends only on [seed], the angle and ability fired
+ * each round and the [redirects] made in a time freeze, never on frame timing.
  */
 class BrickGame(
     override val config: GameConfig = GameConfig(),
@@ -79,6 +79,18 @@ class BrickGame(
     private val boostLog = mutableListOf<Pair<Int, String>>()
     private val pendingBoosts = mutableListOf<Ability>()
 
+    /**
+     * Time-freeze swipes, each as the [steps] count it was made at and its angle. Replaying them
+     * at the same steps reproduces the game.
+     */
+    val redirects: List<Pair<Long, Float>> get() = redirectLog
+    private val redirectLog = mutableListOf<Pair<Long, Float>>()
+
+    /** Steps left in a time freeze, and how fast play runs during it. */
+    private var freezeStepsLeft = 0
+    private var freezeScale = 1f
+    override val timeFrozen: Boolean get() = freezeStepsLeft > 0
+
     /** Fixed steps run since the game began. */
     var steps = 0L
         private set
@@ -86,6 +98,10 @@ class BrickGame(
     private var accumulator = 0f
     private var stepsInPhase = 0
     private var ballsLaunched = 0
+
+    /** Steps of launching so far this shot; it stands still during a time freeze. */
+    private var launchSteps = 0
+    private var ballExited = false
     private var firstLandingX: Float? = null
     private var firstBallHasHit = false
     private var currentBall: Ball? = null
@@ -103,6 +119,9 @@ class BrickGame(
         override fun wallBounce() {
             events += GameEvent.WallBounce
         }
+        override fun exited() {
+            ballExited = true
+        }
     }
 
     private val abilityContext = object : AbilityContext {
@@ -117,6 +136,11 @@ class BrickGame(
         override fun splitFirstBall(extraBalls: Int, maxTurnRadians: Float) {
             require(extraBalls >= 0 && maxTurnRadians >= 0f)
             pendingSplit = extraBalls to maxTurnRadians
+        }
+        override fun freezeTime(steps: Int, timeScale: Float) {
+            require(steps >= 0 && timeScale > 0f && timeScale <= 1f)
+            freezeStepsLeft = steps
+            freezeScale = timeScale
         }
     }
 
@@ -157,6 +181,22 @@ class BrickGame(
         return true
     }
 
+    override fun redirect(angleRadians: Float) {
+        if (!timeFrozen || phase.isFinished) return
+        redirectLog += steps to angleRadians
+        for (ball in ballList) {
+            if (ball.state != BallState.Flying) continue
+            // Aim angles count up from the x axis; y grows downward in the field.
+            aimBall(ball, -angleRadians, sqrt(ball.vx * ball.vx + ball.vy * ball.vy))
+        }
+        endFreeze()
+    }
+
+    private fun endFreeze() {
+        freezeStepsLeft = 0
+        freezeScale = 1f
+    }
+
     override fun fire() {
         if (phase != RoundPhase.Aiming) return
         // A boost waits for a shot so it always starts on a first ball that hasn't moved yet.
@@ -181,6 +221,8 @@ class BrickGame(
             resetEffects(ball)
         }
         ballsLaunched = 0
+        launchSteps = 0
+        endFreeze()
         firstLandingX = null
         firstBallHasHit = false
         stepsInPhase = 0
@@ -215,22 +257,29 @@ class BrickGame(
     }
 
     private fun stepBalls() {
-        if (phase == RoundPhase.Firing && stepsInPhase % fireIntervalSteps == 0) {
-            launch(ballList[ballsLaunched])
-            ballsLaunched++
-            if (ballsLaunched == ballCount) phase = RoundPhase.Returning
+        // A freeze slows the balls in flight and holds back the ones still waiting.
+        val frozen = timeFrozen
+        val timeScale = if (frozen) freezeScale else 1f
+        if (phase == RoundPhase.Firing && !frozen) {
+            if (launchSteps % fireIntervalSteps == 0) {
+                launch(ballList[ballsLaunched])
+                ballsLaunched++
+                if (ballsLaunched == ballCount) phase = RoundPhase.Returning
+            }
+            launchSteps++
         }
         // A split adds balls to the end of the list mid-loop; they start moving next step.
         val moving = ballList.size
         for (i in 0 until moving) {
             val ball = ballList[i]
             when (ball.state) {
-                BallState.Flying -> moveFlying(ball)
-                BallState.Landed -> slideToLaunch(ball)
-                BallState.Waiting -> Unit
+                BallState.Flying -> moveFlying(ball, timeScale)
+                BallState.Landed -> slideToLaunch(ball, timeScale)
+                BallState.Waiting, BallState.Gone -> Unit
             }
         }
-        if (phase == RoundPhase.Returning && ballList.all { it.state == BallState.Landed && it.x == firstLandingX }) {
+        if (frozen) freezeStepsLeft--
+        if (phase == RoundPhase.Returning && ballList.all { it.state == BallState.Gone || (it.state == BallState.Landed && it.x == firstLandingX) }) {
             endRound()
         }
     }
@@ -245,14 +294,24 @@ class BrickGame(
         ball.state = BallState.Flying
     }
 
-    private fun moveFlying(ball: Ball) {
+    private fun moveFlying(ball: Ball, timeScale: Float) {
         currentBall = ball
-        val landed = physics.step(ball, board, config, GameConfig.STEP_SECONDS, contacts)
+        ballExited = false
+        val landed = physics.step(ball, board, config, GameConfig.STEP_SECONDS * timeScale, contacts)
         currentBall = null
+        val exited = ballExited && !landed
         pendingSplit?.let { (extraBalls, spread) ->
             pendingSplit = null
-            // A ball that landed in the same step has nowhere left to split to.
-            if (!landed) split(ball, extraBalls, spread)
+            // A ball that landed or left in the same step has nowhere left to split to.
+            if (!landed && !exited) split(ball, extraBalls, spread)
+        }
+        if (exited) {
+            // It left through the top, so it never lands and never sets the launch point.
+            resetEffects(ball)
+            ball.vx = 0f
+            ball.vy = 0f
+            ball.state = BallState.Gone
+            return
         }
         if (!landed) return
         resetEffects(ball)
@@ -314,14 +373,17 @@ class BrickGame(
     private fun resetEffects(ball: Ball) {
         ball.size = 1f
         ball.pierce = 0
+        ball.ghost = false
+        ball.exitsAtCeiling = false
         ball.insideBricks.clear()
     }
 
     /** Landed balls roll along the floor to where the first ball landed. */
-    private fun slideToLaunch(ball: Ball) {
+    private fun slideToLaunch(ball: Ball, timeScale: Float) {
         val target = firstLandingX ?: return
+        val speed = returnSpeedPerStep * timeScale
         val gap = target - ball.x
-        ball.x = if (abs(gap) <= returnSpeedPerStep) target else ball.x + if (gap > 0) returnSpeedPerStep else -returnSpeedPerStep
+        ball.x = if (abs(gap) <= speed) target else ball.x + if (gap > 0) speed else -speed
     }
 
     private fun onBrickHit(column: Int, row: Int) {
@@ -355,6 +417,7 @@ class BrickGame(
     }
 
     private fun endRound() {
+        endFreeze()
         launchX = firstLandingX ?: launchX
         if (levelRows != null && round >= levelRows && board.bricks().none()) {
             // A level is won only once its last row has come and every brick is broken.
