@@ -100,6 +100,12 @@ class GameShell(
         syncMusic()
     }
 
+    /** The pause menu's ad offer: once the ad pays out, play picks up with [ability] waiting for the next shot. */
+    fun watchAdForBoost(ability: Ability) {
+        if (screen != Screen.Game || !paused) return
+        session.watchAdForBoost(ability) { granted -> if (granted && screen == Screen.Game) resume() }
+    }
+
     fun resume() {
         paused = false
         syncMusic()

@@ -86,6 +86,9 @@ fun App(services: PlatformServices = remember { PlatformServices() }) {
                         onHome = shell::goHome,
                         modifier = Modifier.fillMaxSize(),
                         warning = quitWarning(session.wager.stake, session.wager.outcome),
+                        boostOffers = session.boostOffers,
+                        onBoost = shell::watchAdForBoost,
+                        adMissed = session.adMissed,
                     )
                 }
             }
