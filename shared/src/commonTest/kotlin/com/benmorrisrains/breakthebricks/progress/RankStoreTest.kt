@@ -16,11 +16,11 @@ class RankStoreTest {
 
     @Test
     fun pointsAddUpAcrossGamesAndAreSaved() {
-        assertEquals(PlayerRank(40), ranks.addPoints(40))
-        assertEquals(PlayerRank(160), ranks.addPoints(120))
-        assertEquals(160, store.getLong(RankStore.POINTS_KEY, 0))
+        assertEquals(PlayerRank(400), ranks.addPoints(400))
+        assertEquals(PlayerRank(1_600), ranks.addPoints(1_200))
+        assertEquals(1_600, store.getLong(RankStore.POINTS_KEY, 0))
         assertEquals(3, store.getLong(RankStore.RANK_KEY, 0))
-        assertEquals(PlayerRank(160), RankStore(store).load())
+        assertEquals(PlayerRank(1_600), RankStore(store).load())
     }
 
     @Test
