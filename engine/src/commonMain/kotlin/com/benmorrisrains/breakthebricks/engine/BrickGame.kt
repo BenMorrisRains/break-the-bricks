@@ -16,8 +16,8 @@ import kotlin.math.sqrt
  *
  * A round goes Aiming -> Firing -> Returning -> Advancing -> Aiming, or ends in GameOver
  * (a brick reached the floor row) or LevelComplete (a level's last row came and every brick is broken).
- * Nothing moves while Aiming, so a game depends only on [seed] and the angle fired each round,
- * never on frame timing.
+ * Nothing moves while Aiming, so a game depends only on [seed] and the angle and ability fired
+ * each round, never on frame timing.
  */
 class BrickGame(
     override val config: GameConfig = GameConfig(),
@@ -40,6 +40,9 @@ class BrickGame(
     override val board = Board(config.columns, config.rows)
     override val balls: List<Ball> get() = ballList
     override val activeAbilities: List<Ability> get() = abilityList
+    private var selectedId: String? = null
+    override val selectedAbility: Ability?
+        get() = abilityList.firstOrNull { it.id == selectedId } ?: abilityList.firstOrNull()
 
     override var phase = RoundPhase.Aiming
         private set
@@ -57,6 +60,13 @@ class BrickGame(
     /** Angles fired so far, one per round. Replaying them on the same seed reproduces the game. */
     val firedAngles: List<Float> get() = fired
     private val fired = mutableListOf<Float>()
+
+    /** The ability each round's shot used (null for none), alongside [firedAngles] for replays. */
+    val firedAbilities: List<String?> get() = firedAbilityIds
+    private val firedAbilityIds = mutableListOf<String?>()
+
+    /** The ability the shot in flight uses, fixed when it was fired. */
+    private var shotAbility: Ability? = null
 
     /** Fixed steps run since the game began. */
     var steps = 0L
@@ -123,9 +133,16 @@ class BrickGame(
         aimAngle = clampAim(angleRadians)
     }
 
+    override fun selectAbility(abilityId: String) {
+        if (phase != RoundPhase.Aiming) return
+        if (abilityList.any { it.id == abilityId }) selectedId = abilityId
+    }
+
     override fun fire() {
         if (phase != RoundPhase.Aiming) return
         fired += aimAngle
+        shotAbility = selectedAbility
+        firedAbilityIds += shotAbility?.id
         val vx = cos(aimAngle) * config.ballSpeed
         val vy = -sin(aimAngle) * config.ballSpeed
         for (ball in ballList) {
@@ -191,11 +208,9 @@ class BrickGame(
         }
     }
 
-    /** Sends [ball] off, letting the abilities change the round's first ball before it moves. */
+    /** Sends [ball] off, letting the shot's ability change the round's first ball before it moves. */
     private fun launch(ball: Ball) {
-        if (ball === ballList.first()) {
-            for (ability in abilityList) ability.onFirstLaunch(abilityContext, ball)
-        }
+        if (ball === ballList.first()) shotAbility?.onFirstLaunch(abilityContext, ball)
         // A bigger ball starts higher, resting on the floor, and clear of the walls.
         val radius = ball.radius(config)
         ball.x = ball.x.coerceIn(radius, config.columns - radius)
@@ -267,7 +282,7 @@ class BrickGame(
         damageBrick(column, row, 1)
         if (currentBall === ballList.first() && !firstBallHasHit) {
             firstBallHasHit = true
-            for (ability in abilityList) {
+            shotAbility?.let { ability ->
                 events += GameEvent.AbilityTriggered(ability.id, column, row)
                 ability.onFirstHit(abilityContext, column, row)
             }
@@ -329,7 +344,8 @@ class BrickGame(
     }
 
     /**
-     * Reaching an ability's round earns it and keeps it active for the rest of the game.
+     * Reaching an ability's round earns it and keeps it active (selectable) for the rest of the game.
+     * Earning one doesn't change which ability is picked.
      * An ability that is already active (a staked copy) still reports the earned copy but
      * doesn't fire twice.
      */

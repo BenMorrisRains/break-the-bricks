@@ -30,9 +30,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,8 +42,8 @@ import com.benmorrisrains.breakthebricks.engine.Ability
 import com.benmorrisrains.breakthebricks.engine.GameEngine
 import com.benmorrisrains.breakthebricks.engine.GameEvent
 
-/** Width of one icon slot in the HUD tray. */
-private val TraySlot = 28.dp
+/** Width of one icon slot in the HUD tray; big enough to tap when picking an ability. */
+private val TraySlot = 36.dp
 
 /**
  * The ability showcase for one game: canvas effects, the earning card and the HUD tray's pulses,
@@ -83,7 +85,16 @@ class AbilityShowcase {
  */
 internal fun trayIds(engine: GameEngine): List<String> = engine.activeAbilities.map { it.id }.distinct()
 
-/** Active abilities as small glowing icons by the score; each pulses when it fires. */
+/**
+ * Whether the tray shows a pick: with more than one ability active, the one the next shot uses
+ * is ringed and the player can tap another while aiming.
+ */
+internal fun trayPicks(engine: GameEngine): Boolean = trayIds(engine).size > 1
+
+/**
+ * Active abilities as small glowing icons by the score; each pulses when it fires. With more
+ * than one, the picked one is ringed and tapping another while aiming picks it for the next shot.
+ */
 @Composable
 internal fun AbilityTray(engine: GameEngine, showcase: AbilityShowcase, frame: LongState, modifier: Modifier = Modifier) {
     val ids by remember(engine) { derivedStateOf { frame.longValue; trayIds(engine) } }
@@ -100,18 +111,38 @@ internal fun AbilityTray(engine: GameEngine, showcase: AbilityShowcase, frame: L
             },
     ) {
         for (id in ids) {
-            Canvas(Modifier.size(TraySlot)) {
+            val slot = if (ids.size > 1) {
+                Modifier.clickable(role = Role.Button, onClickLabel = "Use ${abilityName(id)}") { engine.selectAbility(id) }
+            } else {
+                Modifier
+            }
+            // Abilities not picked for the next shot stay in full color but fade back.
+            val faded = Modifier.graphicsLayer {
+                frame.longValue
+                alpha = if (trayPicks(engine) && engine.selectedAbility?.id != id) 0.45f else 1f
+            }
+            Canvas(slot.then(faded).size(TraySlot)) {
                 frame.longValue
                 if (!showcase.cards.hasLanded(id)) return@Canvas
+                val picking = trayPicks(engine)
+                val picked = !picking || engine.selectedAbility?.id == id
                 val pulse = showcase.pulses.pulse(id)
                 val center = Offset(size.width / 2, size.height / 2)
+                if (picking && picked) {
+                    drawCircle(
+                        NeonPalette.Yellow,
+                        radius = size.minDimension * 0.47f,
+                        center = center,
+                        style = Stroke(width = size.minDimension * 0.07f),
+                    )
+                }
                 drawCircle(
-                    NeonPalette.Purple.copy(alpha = 0.22f + 0.5f * pulse),
-                    radius = size.minDimension * (0.45f + 0.2f * pulse),
+                    NeonPalette.Purple.copy(alpha = (if (picked) 0.22f else 0.08f) + 0.5f * pulse),
+                    radius = size.minDimension * (0.4f + 0.2f * pulse),
                     center = center,
                     blendMode = BlendMode.Plus,
                 )
-                drawAbilityIcon(id, center, size.minDimension * (0.8f + 0.35f * pulse))
+                drawAbilityIcon(id, center, size.minDimension * (0.7f + 0.35f * pulse))
             }
         }
     }
@@ -119,7 +150,8 @@ internal fun AbilityTray(engine: GameEngine, showcase: AbilityShowcase, frame: L
 
 /**
  * The earning card (plan doc): it flips in over the game with the ability's name, its looping
- * preview and "Active for the rest of this game", holds, then shrinks into the ability's HUD
+ * preview and "Active for the rest of this game" (plus how to switch to it when another ability
+ * is already picked), holds, then shrinks into the ability's HUD
  * tray slot. While it shows it swallows touches; a tap sends it to the tray at once.
  */
 @Composable
@@ -176,6 +208,13 @@ internal fun EarnedCardOverlay(engine: GameEngine, showcase: AbilityShowcase, fr
                 "ACTIVE FOR THE REST\nOF THIS GAME",
                 style = arcadeStyle(NeonPalette.Cyan, 11.sp, TextAlign.Center),
             )
+            // Earning a second ability doesn't change the pick, so say how to switch to it.
+            if (trayPicks(engine)) {
+                BasicText(
+                    "TAP ITS ICON BY THE SCORE\nTO USE IT NEXT SHOT",
+                    style = arcadeStyle(NeonPalette.Yellow, 10.sp, TextAlign.Center),
+                )
+            }
         }
     }
 }
