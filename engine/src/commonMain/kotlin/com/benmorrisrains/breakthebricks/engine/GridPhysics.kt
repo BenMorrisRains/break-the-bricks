@@ -56,6 +56,7 @@ object GridPhysics : BallPhysics {
     override fun step(ball: Ball, board: Board, config: GameConfig, dt: Float, contacts: BallContacts): Boolean {
         require(dt >= 0f) { "dt must not be negative" }
         val sweep = Sweep(
+            ball = ball,
             board = board,
             radius = ball.radius(config).toDouble(),
             x = ball.x.toDouble(),
@@ -83,6 +84,7 @@ object GridPhysics : BallPhysics {
     private class Contact(val time: Double, val nx: Int, val ny: Int, val surface: Surface, val cell: Int = -1)
 
     private class Sweep(
+        val ball: Ball,
         val board: Board,
         val radius: Double,
         var x: Double,
@@ -120,6 +122,11 @@ object GridPhysics : BallPhysics {
                 remaining -= first
 
                 val bricksHit = now.filter { it.surface == Surface.Brick }.map { it.cell }.distinct().sorted()
+                if (bricksHit.isNotEmpty()) {
+                    // Hits are reported with the ball at the contact point, before it reflects.
+                    ball.x = x.toFloat()
+                    ball.y = y.toFloat()
+                }
                 bricksHit.forEach { contacts.brickHit(it % board.columns, it / board.columns) }
                 if (now.any { it.surface == Surface.Wall }) contacts.wallBounce()
                 val passThrough = bricksHit.isNotEmpty() && pierce >= bricksHit.size
