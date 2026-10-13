@@ -349,6 +349,18 @@ class AbilitiesTest {
     }
 
     @Test
+    fun aBoostIsPickedForTheShotItStartsOn() {
+        val game = gameWith(listOf(BigBall), DropPhysics { 3.5f })
+        game.boost(Drill)
+        assertEquals(BigBall, game.selectedAbility, "the boost waits for the shot")
+        playRound(game)
+        assertEquals(listOf<String?>("drill"), game.firedAbilities)
+        game.selectAbility(BigBall.id)
+        playRound(game)
+        assertEquals(listOf<String?>("drill", "big_ball"), game.firedAbilities, "the player can switch back")
+    }
+
+    @Test
     fun thePickCanOnlyChangeWhileAiming() {
         val game = gameWith(listOf(BigBall, Drill), DropPhysics { 3.5f })
         game.fire()

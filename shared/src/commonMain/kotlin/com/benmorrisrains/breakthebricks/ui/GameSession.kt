@@ -31,6 +31,10 @@ import kotlin.random.Random
  * [bank] stakes one copy, which is active from round 1. Levels are never staked (default not
  * yet confirmed by Ben), but abilities earned in them are banked like any other.
  *
+ * During a game the player can watch a rewarded ad for one power-up ([watchAdForBoost]). It is
+ * on for that game only, from the next shot, and never enters the [bank], so it can't be
+ * staked (Ben, 2026-10-13). One ad boost per game (default not yet confirmed by Ben).
+ *
  * The seed is the only thing picked at random, and it is picked here, outside the engine; the
  * engine itself stays deterministic for a given seed and set of aims.
  */
@@ -74,6 +78,26 @@ class GameSession(
     /** The current game's wager; unstaked for levels, the first game and an empty inventory. */
     var wager: WagerGame by mutableStateOf(WagerGame())
         private set
+
+    /** True once this game has had its ad power-up. */
+    var boostUsed: Boolean by mutableStateOf(false)
+        private set
+
+    /** True while a rewarded ad is on screen. */
+    var adShowing: Boolean by mutableStateOf(false)
+        private set
+
+    /** True when the last ad didn't pay out (none ready, failed, or closed early). */
+    var adMissed: Boolean by mutableStateOf(false)
+        private set
+
+    /** Power-ups an ad can turn on right now: none once this game has had one, else any not already on. */
+    val boostOffers: List<Ability>
+        get() = if (boostUsed || adShowing || engine.phase.isFinished) {
+            emptyList()
+        } else {
+            bank.abilities.filter { ability -> engine.activeAbilities.none { it.id == ability.id } }
+        }
 
     /** The best of the current mode: free play, or the level being played. */
     var bestPoints: Long by mutableLongStateOf(services.store.getLong(BEST_POINTS_KEY, 0L))
@@ -170,6 +194,27 @@ class GameSession(
         bestPoints = services.store.getLong(bestPointsKey(level), 0L)
         gameOverSeconds = 0f
         bestBeforeGame = bestPoints
+        boostUsed = false
+        adMissed = false
+    }
+
+    /**
+     * Shows a rewarded ad and, if the player watches it, turns [ability] on for the rest of this
+     * game from the next shot. [onDone] gets whether it was granted. An ad that finishes after
+     * the game was left grants nothing.
+     */
+    fun watchAdForBoost(ability: Ability, onDone: (granted: Boolean) -> Unit = {}) {
+        if (ability !in boostOffers) return
+        val game = engine
+        adShowing = true
+        adMissed = false
+        services.ads.show { rewarded ->
+            adShowing = false
+            val granted = rewarded && engine === game && game.boost(ability)
+            if (granted) boostUsed = true
+            adMissed = !rewarded
+            onDone(granted)
+        }
     }
 
     /** Leaves the current game. A wager still open is lost; its copy was taken at the start. */

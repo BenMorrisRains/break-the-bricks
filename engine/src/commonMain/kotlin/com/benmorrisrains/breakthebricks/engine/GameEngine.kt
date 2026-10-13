@@ -37,6 +37,13 @@ interface GameEngine {
     /** Fires this round's balls. Ignored outside [RoundPhase.Aiming]. */
     fun fire()
 
+    /**
+     * Turns [ability] on for the rest of this game, from the next shot's first ball: a one-game
+     * boost such as a rewarded ad's. It never touches the wager inventory. False when the game is
+     * over or the ability is already on (or already waiting for the next shot).
+     */
+    fun boost(ability: Ability): Boolean = false
+
     /** Runs as many fixed physics steps as [elapsedSeconds] covers. */
     fun advance(elapsedSeconds: Float)
 

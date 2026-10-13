@@ -17,7 +17,7 @@ If code and the doc disagree, the doc wins; if the doc is silent, ask Ben in you
 - All randomness goes through `SeededRandom`. Never use `kotlin.random`, `Math.random` or the time in game logic.
 - Physics runs at a fixed `GameConfig.STEPS_PER_SECOND`. Frame time is only fed to `GameEngine.advance`.
 - The same seed plus the same inputs must always give the same game. Keep it that way, and test it.
-- The UI reads engine state and drains `GameEvent`s. It never changes game state except through `aim`, `selectAbility` and `fire`.
+- The UI reads engine state and drains `GameEvent`s. It never changes game state except through `aim`, `selectAbility`, `fire` and `boost`.
 - Colors come only from `NeonPalette`. No color literals elsewhere.
 - Platform features (sound, haptics, storage, purchases, ads) sit behind the interfaces in `shared/.../platform`. Common code never calls platform APIs directly.
 - Abilities plug in through the `Ability` interface. Don't special-case an ability inside the physics.
@@ -36,6 +36,7 @@ If code and the doc disagree, the doc wins; if the doc is silent, ask Ben in you
   - Grenade ball, round 30 (target 35): the first ball explodes on its first hit and destroys only that brick, whatever its number (Ben, 2026-10-12 playtest). Ben moved it off round 5 because it was too powerful early.
 - No real-money wagers. Players stake earned abilities. A wager is won by reaching the ability's target round.
 - Abilities are never sold for money.
+- In a game, the player can watch a rewarded ad for one power-up (Ben, 2026-10-13). It lasts that game only, starts on the next shot, and never enters the inventory, so it can't be staked. One per game (Claude's default).
 
 ## Tests
 
