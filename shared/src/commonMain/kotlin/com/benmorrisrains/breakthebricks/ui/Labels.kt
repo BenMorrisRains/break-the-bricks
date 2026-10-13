@@ -28,3 +28,7 @@ fun formatPoints(points: Long): String {
     val grouped = digits.reversed().chunked(3).joinToString(",").reversed()
     return if (points < 0) "-$grouped" else grouped
 }
+
+/** HUD round text: "ROUND 7", or "ROUND 3/8" in a level with a goal of 8 rounds. */
+fun roundLabel(round: Int, goalRounds: Int?): String =
+    if (goalRounds == null) "ROUND $round" else "ROUND $round/$goalRounds"

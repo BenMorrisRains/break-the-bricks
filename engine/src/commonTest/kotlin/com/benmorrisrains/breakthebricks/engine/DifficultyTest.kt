@@ -105,4 +105,12 @@ class DifficultyTest {
         assertEquals(play(33), play(33))
         assertTrue(play(33) != play(1), "rank changes the game")
     }
+
+    @Test
+    fun levelLayoutsDontTakeRankRows() {
+        val layout = listOf(List<Long?>(7) { 1L })
+        assertFailsWith<IllegalArgumentException> {
+            BrickGame(Difficulty.forRank(30), seed = 1, physics = TestPhysics(), layout = layout)
+        }
+    }
 }

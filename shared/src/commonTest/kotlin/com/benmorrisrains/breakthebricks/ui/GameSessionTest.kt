@@ -5,6 +5,7 @@ import com.benmorrisrains.breakthebricks.engine.Ball
 import com.benmorrisrains.breakthebricks.engine.Board
 import com.benmorrisrains.breakthebricks.engine.BrickGame
 import com.benmorrisrains.breakthebricks.engine.Difficulty
+import com.benmorrisrains.breakthebricks.engine.FreeLevels
 import com.benmorrisrains.breakthebricks.engine.GameConfig
 import com.benmorrisrains.breakthebricks.engine.GameEngine
 import com.benmorrisrains.breakthebricks.engine.GameEvent
@@ -27,13 +28,13 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class GameSessionTest {
-    private class FakeEngine(val rank: Int = 1, override var phase: RoundPhase = RoundPhase.Aiming) : GameEngine {
+    internal class FakeEngine(override var phase: RoundPhase = RoundPhase.Aiming) : GameEngine {
         override val config = GameConfig()
         override val board = Board(config.columns, config.rows)
         override val balls = emptyList<Ball>()
-        override val round = 1
+        override var round = 1
         override val ballCount = 1
-        override val points = 0L
+        override var points = 0L
         override val launchX = 3.5f
         override val aimAngle = 1.57f
         override val activeAbilities = emptyList<Ability>()
@@ -57,12 +58,13 @@ class GameSessionTest {
     private val store = InMemoryStore()
     private val services = PlatformServices(recorder, recorder, store)
     private val seeds = mutableListOf<Long>()
+    private val ranks = mutableListOf<Int>()
     private var nextSeed = 10L
 
     private fun session(engines: MutableList<FakeEngine>) = GameSession(
         services,
         newSeed = { nextSeed++ },
-        newEngine = { seed, rank -> seeds += seed; FakeEngine(rank).also { engines += it } },
+        newEngine = { seed, rank -> seeds += seed; ranks += rank; FakeEngine().also { engines += it } },
     )
 
     @Test
@@ -71,22 +73,54 @@ class GameSessionTest {
     }
 
     @Test
-    fun restartWaitsForGameOverAndAShortPause() {
+    fun resultsWaitForGameOverAndAShortPause() {
         val engines = mutableListOf<FakeEngine>()
         val session = session(engines)
-        val first = session.engine
-        assertFalse(session.restart(), "no restart mid-game")
+        assertFalse(session.canSkipToResults, "nothing to skip mid-game")
+        assertNull(session.result)
 
         engines.last().phase = RoundPhase.GameOver
         session.onFrame(0.3f, emptyList())
-        assertFalse(session.restart(), "too soon after game over")
-        session.onFrame(GameSession.RESTART_DELAY_SECONDS, emptyList())
-        assertTrue(session.restart())
+        assertFalse(session.canSkipToResults, "too soon after game over")
+        session.onFrame(GameSession.SKIP_DELAY_SECONDS, emptyList())
+        assertTrue(session.canSkipToResults)
+        assertFalse(session.resultsDue)
+        session.onFrame(GameSession.RESULTS_DELAY_SECONDS, emptyList())
+        assertTrue(session.resultsDue)
+        assertEquals(GameResult(round = 1, points = 0, bestPoints = 0, isNewBest = false), session.result)
+    }
 
-        assertNotSame(first, session.engine)
+    @Test
+    fun newGameStartsOnAFreshSeedAtAnyTime() {
+        val engines = mutableListOf<FakeEngine>()
+        val session = session(engines)
+        val first = session.engine
+        session.newGame()
+        assertNotSame(first, session.engine, "a game in progress can be dropped")
+        engines.last().phase = RoundPhase.GameOver
+        session.onFrame(GameSession.RESULTS_DELAY_SECONDS, emptyList())
+        session.newGame()
         assertEquals(RoundPhase.Aiming, session.engine.phase)
-        assertEquals(listOf(10L, 11L), seeds, "each game gets a fresh seed")
-        assertFalse(session.canRestart)
+        assertFalse(session.resultsDue, "the game over timer resets")
+        assertEquals(listOf(10L, 11L, 12L), seeds, "each game gets a fresh seed")
+    }
+
+    @Test
+    fun resultCallsOutANewBestOnlyAgainstTheBestBeforeThatGame() {
+        store.putLong(GameSession.BEST_POINTS_KEY, 100)
+        val engines = mutableListOf<FakeEngine>()
+        val session = session(engines)
+        engines.last().apply { points = 250; round = 12; phase = RoundPhase.GameOver }
+        session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 12, points = 250)))
+        assertEquals(
+            GameResult(round = 12, points = 250, bestPoints = 250, isNewBest = true, rankUp = RankUp(from = 1, to = 3)),
+            session.result,
+        )
+
+        session.newGame()
+        engines.last().apply { points = 250; phase = RoundPhase.GameOver }
+        session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 1, points = 250)))
+        assertEquals(false, session.result?.isNewBest, "tying the best isn't a new best")
     }
 
     @Test
@@ -112,13 +146,61 @@ class GameSessionTest {
         assertSame(engine, session.engine)
     }
 
+    @Test
+    fun aLevelPlaysItsOwnSeedAndSavesItsOwnResult() {
+        val engines = mutableListOf<FakeEngine>()
+        val levelsPlayed = mutableListOf<Int>()
+        val session = GameSession(
+            services,
+            newSeed = { nextSeed++ },
+            newEngine = { _, _ -> FakeEngine().also { engines += it } },
+            newLevelEngine = { level -> levelsPlayed += level.number; FakeEngine().also { engines += it } },
+        )
+        store.putLong(GameSession.BEST_POINTS_KEY, 500)
+        val level = FreeLevels[1]
+        session.newGame(level)
+        assertEquals(listOf(1), levelsPlayed)
+        assertEquals(level, session.level)
+        assertEquals(0, session.bestPoints, "a level has its own best, not free play's")
+
+        engines.last().apply { points = level.threeStarPoints; round = level.goalRounds; phase = RoundPhase.LevelComplete }
+        session.onFrame(0.016f, listOf(GameEvent.LevelCompleted(level.goalRounds, level.threeStarPoints)))
+        val result = session.result
+        assertEquals(true, result?.passed)
+        assertEquals(3, result?.stars)
+        assertEquals(level, result?.level)
+        assertEquals(3, session.progress.stars(1))
+        assertTrue(session.progress.isUnlocked(2))
+        assertEquals(level.threeStarPoints, store.getLong(LevelProgress.bestPointsKey(1), 0))
+        assertEquals(500, store.getLong(GameSession.BEST_POINTS_KEY, 0), "free play's best is untouched")
+
+        session.onFrame(GameSession.RESULTS_DELAY_SECONDS, emptyList())
+        assertTrue(session.resultsDue, "a cleared level moves on to the results too")
+
+        session.newGame()
+        assertNull(session.level)
+        assertEquals(500, session.bestPoints)
+    }
+
+    @Test
+    fun aFailedLevelEarnsNoStars() {
+        val engines = mutableListOf<FakeEngine>()
+        val session = GameSession(services, newEngine = { _, _ -> FakeEngine() }, newLevelEngine = { FakeEngine().also { engines += it } })
+        session.newGame(FreeLevels[1])
+        engines.last().apply { points = 999; phase = RoundPhase.GameOver }
+        session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 3, points = 999)))
+        assertEquals(false, session.result?.passed)
+        assertEquals(0, session.result?.stars)
+        assertEquals(0, session.progress.stars(1))
+    }
+
     private fun assertHud(rank: Int, progress: Float, actual: HudRank, message: String? = null) {
         assertEquals(rank, actual.rank, message)
         assertEquals(progress, actual.progress, 1e-6f, message)
     }
 
     @Test
-    fun theDefaultSessionBuildsTheGameForTheSavedRank() {
+    fun theDefaultSessionBuildsFreePlayForTheSavedRank() {
         RankStore(store).addPoints(PlayerRank.pointsToReach(50))
         val config = GameSession(services).engine.config
         val expected = Difficulty.forRank(50)
@@ -132,25 +214,36 @@ class GameSessionTest {
         store.putLong(RankStore.POINTS_KEY, 30)
         val engines = mutableListOf<FakeEngine>()
         val session = session(engines)
-        assertEquals(1, engines.last().rank)
+        assertEquals(listOf(1), ranks)
         assertHud(1, 30f / 50f, session.hudRank(0))
         assertHud(1, 40f / 50f, session.hudRank(10), "the bar fills live")
         assertHud(1, 1f, session.hudRank(200), "the rank waits for the game to end")
 
-        engines.last().phase = RoundPhase.GameOver
+        engines.last().apply { points = 200; phase = RoundPhase.GameOver }
         session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 8, points = 200)))
         session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 8, points = 200)))
         assertEquals(230, store.getLong(RankStore.POINTS_KEY, 0), "a game's points count once")
         assertEquals(3, store.getLong(RankStore.RANK_KEY, 0))
         assertEquals(RankUp(from = 1, to = 3), session.rankUp)
-        assertEquals(PlayerRank(230), session.playerRank)
+        assertEquals(RankUp(from = 1, to = 3), session.result?.rankUp)
+        assertEquals(RankProgress(rank = 3, pointsIntoRank = 80, pointsForNextRank = 150), session.rankProgress())
         assertHud(3, 80f / 150f, session.hudRank(200))
 
-        session.onFrame(GameSession.RESTART_DELAY_SECONDS, emptyList())
-        assertTrue(session.restart())
-        assertEquals(3, engines.last().rank)
+        session.newGame()
+        assertEquals(listOf(1, 3), ranks)
         assertEquals(3, session.gameRank)
         assertNull(session.rankUp)
+    }
+
+    @Test
+    fun levelPointsCountTowardRankButLevelsKeepTheirOwnBoards() {
+        val engines = mutableListOf<FakeEngine>()
+        val session = GameSession(services, newEngine = { _, _ -> FakeEngine() }, newLevelEngine = { FakeEngine().also { engines += it } })
+        session.newGame(FreeLevels[1])
+        engines.last().apply { points = 60; phase = RoundPhase.GameOver }
+        session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 3, points = 60)))
+        assertEquals(PlayerRank(60), session.playerRank)
+        assertEquals(RankUp(from = 1, to = 2), session.result?.rankUp)
     }
 
     @Test

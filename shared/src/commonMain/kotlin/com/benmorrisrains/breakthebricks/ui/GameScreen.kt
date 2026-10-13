@@ -1,6 +1,9 @@
 package com.benmorrisrains.breakthebricks.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,7 +12,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -22,16 +27,12 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.benmorrisrains.breakthebricks.engine.GameEngine
 import com.benmorrisrains.breakthebricks.engine.GameEvent
+import com.benmorrisrains.breakthebricks.engine.Level
 
 /** Longest frame fed to the engine, so a stall (app in background, debugger) doesn't jump the game. */
 private const val MAX_FRAME_SECONDS = 0.1f
@@ -40,25 +41,30 @@ private const val MAX_FRAME_SECONDS = 0.1f
  * The game: HUD on top, a thin divider, then the [GameCanvas]. Drives [engine] once per display
  * frame (60 or 120 Hz) and hands each frame's time and drained events to [onFrame] for sound and
  * haptics. [onFire] runs when a release fires the balls; [onGameOverTap] when the field is tapped
- * after a game over. [hudRank] gives the rank and bar for the points scored so far; [rankUp]
- * puts a rank-up banner on the game over screen.
+ * after a game over. While [paused] the engine isn't advanced; [onPause] adds a pause button to
+ * the HUD. [level] is the level being played, or null in free play. [hudRank] gives the rank
+ * and the bar to the next rank for the points scored so far.
  */
 @Composable
 fun GameScreen(
     engine: GameEngine,
     modifier: Modifier = Modifier,
     bestPoints: Long = 0L,
-    hudRank: (points: Long) -> HudRank = { HudRank(rank = 1, progress = 0f) },
-    rankUp: RankUp? = null,
     onFrame: (elapsedSeconds: Float, events: List<GameEvent>) -> Unit = { _, _ -> },
     onFire: () -> Unit = {},
     onGameOverTap: () -> Unit = {},
+    paused: Boolean = false,
+    onPause: (() -> Unit)? = null,
+    level: Level? = null,
+    hudRank: (points: Long) -> HudRank = { HudRank(rank = 1, progress = 0f) },
 ) {
     val frame = remember { mutableLongStateOf(0L) }
     val flashes = remember(engine) { BrickFlashes() }
     val abilityCue = remember(engine) { AbilityCue() }
     val latestOnFrame by rememberUpdatedState(onFrame)
-    LaunchedEffect(engine) {
+    LaunchedEffect(engine, paused) {
+        if (paused) return@LaunchedEffect
+        // Restarted on resume, so the time spent paused is never fed to the engine.
         var last = withFrameNanos { it }
         while (true) {
             withFrameNanos { now ->
@@ -74,7 +80,7 @@ fun GameScreen(
         }
     }
     Column(modifier) {
-        GameHud(engine, frame, bestPoints)
+        GameHud(engine, frame, bestPoints, onPause = onPause)
         RankBar(engine, frame, hudRank)
         Box(Modifier.fillMaxWidth().height(1.dp).background(NeonPalette.Purple.copy(alpha = 0.5f)))
         GameCanvas(
@@ -82,35 +88,43 @@ fun GameScreen(
             frame = frame,
             flashes = flashes,
             abilityCue = abilityCue,
-            rankUp = rankUp,
             modifier = Modifier.fillMaxWidth().weight(1f),
             onFire = onFire,
             onGameOverTap = onGameOverTap,
+            level = level,
         )
     }
 }
 
-/** Points in large arcade digits at top center, the round on the left, the best on the right. */
+/**
+ * Points in large arcade digits at top center, the round on the left (with the goal in a
+ * level, "ROUND 3/8"), the best on the right. With [onPause], a pause button sits before the round.
+ */
 @Composable
-fun GameHud(engine: GameEngine, frame: LongState, bestPoints: Long, modifier: Modifier = Modifier) {
+fun GameHud(
+    engine: GameEngine,
+    frame: LongState,
+    bestPoints: Long,
+    modifier: Modifier = Modifier,
+    onPause: (() -> Unit)? = null,
+) {
     // Re-read the engine each frame but only recompose when the shown values change.
     val points by remember(engine) { derivedStateOf { frame.longValue; engine.points } }
     val round by remember(engine) { derivedStateOf { frame.longValue; engine.round } }
     Box(modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp)) {
-        BasicText(
-            text = "ROUND $round",
-            modifier = Modifier.align(Alignment.CenterStart),
-            style = hudStyle(NeonPalette.Purple, 14.sp),
-        )
+        Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.CenterVertically) {
+            if (onPause != null) PauseButton(onPause)
+            BasicText(text = roundLabel(round, engine.goalRounds), style = arcadeStyle(NeonPalette.Purple, 14.sp))
+        }
         BasicText(
             text = formatPoints(points),
             modifier = Modifier.align(Alignment.Center),
-            style = hudStyle(NeonPalette.Ink, 34.sp),
+            style = arcadeStyle(NeonPalette.Ink, 34.sp),
         )
         BasicText(
             text = "BEST ${formatPoints(maxOf(bestPoints, points))}",
             modifier = Modifier.align(Alignment.CenterEnd),
-            style = hudStyle(NeonPalette.Purple, 14.sp),
+            style = arcadeStyle(NeonPalette.Purple, 14.sp),
         )
     }
 }
@@ -124,7 +138,7 @@ fun RankBar(engine: GameEngine, frame: LongState, hudRank: (points: Long) -> Hud
         modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BasicText(text = "RANK ${shown.rank}", style = hudStyle(NeonPalette.Cyan, 12.sp))
+        BasicText(text = "RANK ${shown.rank}", style = arcadeStyle(NeonPalette.Cyan, 12.sp))
         Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f).height(6.dp).background(NeonPalette.Dim)) {
             Box(Modifier.fillMaxHeight().fillMaxWidth(shown.progress.coerceIn(0f, 1f)).background(NeonPalette.Lime))
@@ -132,10 +146,19 @@ fun RankBar(engine: GameEngine, frame: LongState, hudRank: (points: Long) -> Hud
     }
 }
 
-private fun hudStyle(color: Color, size: TextUnit) = TextStyle(
-    color = color,
-    fontSize = size,
-    fontFamily = FontFamily.Monospace,
-    fontWeight = FontWeight.Bold,
-    shadow = Shadow(color = color.copy(alpha = 0.6f), blurRadius = 14f),
-)
+/** Two neon bars in a square outline, big enough to hit without aiming. */
+@Composable
+private fun PauseButton(onClick: () -> Unit) {
+    val shape = RoundedCornerShape(4.dp)
+    Row(
+        modifier = Modifier
+            .padding(end = 10.dp)
+            .size(36.dp)
+            .border(2.dp, NeonPalette.Purple, shape)
+            .clickable(role = Role.Button, onClickLabel = "Pause", onClick = onClick),
+        horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(2) { Box(Modifier.size(width = 5.dp, height = 16.dp).background(NeonPalette.Purple)) }
+    }
+}
