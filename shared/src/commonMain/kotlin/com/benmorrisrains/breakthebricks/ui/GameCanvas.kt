@@ -79,7 +79,7 @@ fun GameCanvas(
 
 /**
  * Finger down or drag aims, lift fires; see [AimGesture] for the cancel rule. After a game over,
- * a press is a tap to play again instead.
+ * a press is a tap to move on to the results instead.
  */
 private suspend fun PointerInputScope.aimInput(
     engine: GameEngine,
@@ -303,7 +303,7 @@ private fun DrawScope.drawGameOver(layout: FieldLayout, labels: LabelCache) {
     val label = labels.get(this, "GAME OVER", layout.cell * 0.55f)
     val center = Offset(layout.originX + layout.fieldWidth / 2, (layout.originY + layout.floorY) / 2)
     drawText(label, NeonPalette.Magenta, center - Offset(label.size.width / 2f, label.size.height / 2f))
-    val hint = labels.get(this, "TAP TO PLAY AGAIN", layout.cell * 0.22f)
+    val hint = labels.get(this, "TAP TO CONTINUE", layout.cell * 0.22f)
     val hintTop = center.y + label.size.height / 2f + layout.cell * 0.3f
     drawText(hint, NeonPalette.Cyan, Offset(center.x - hint.size.width / 2f, hintTop))
 }

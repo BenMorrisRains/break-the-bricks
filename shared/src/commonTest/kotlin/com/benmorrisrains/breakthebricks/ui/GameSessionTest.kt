@@ -19,17 +19,18 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotSame
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class GameSessionTest {
-    private class FakeEngine(override var phase: RoundPhase = RoundPhase.Aiming) : GameEngine {
+    internal class FakeEngine(override var phase: RoundPhase = RoundPhase.Aiming) : GameEngine {
         override val config = GameConfig()
         override val board = Board(config.columns, config.rows)
         override val balls = emptyList<Ball>()
-        override val round = 1
+        override var round = 1
         override val ballCount = 1
-        override val points = 0L
+        override var points = 0L
         override val launchX = 3.5f
         override val aimAngle = 1.57f
         override val activeAbilities = emptyList<Ability>()
@@ -67,22 +68,51 @@ class GameSessionTest {
     }
 
     @Test
-    fun restartWaitsForGameOverAndAShortPause() {
+    fun resultsWaitForGameOverAndAShortPause() {
         val engines = mutableListOf<FakeEngine>()
         val session = session(engines)
-        val first = session.engine
-        assertFalse(session.restart(), "no restart mid-game")
+        assertFalse(session.canSkipToResults, "nothing to skip mid-game")
+        assertNull(session.result)
 
         engines.last().phase = RoundPhase.GameOver
         session.onFrame(0.3f, emptyList())
-        assertFalse(session.restart(), "too soon after game over")
-        session.onFrame(GameSession.RESTART_DELAY_SECONDS, emptyList())
-        assertTrue(session.restart())
+        assertFalse(session.canSkipToResults, "too soon after game over")
+        session.onFrame(GameSession.SKIP_DELAY_SECONDS, emptyList())
+        assertTrue(session.canSkipToResults)
+        assertFalse(session.resultsDue)
+        session.onFrame(GameSession.RESULTS_DELAY_SECONDS, emptyList())
+        assertTrue(session.resultsDue)
+        assertEquals(GameResult(round = 1, points = 0, bestPoints = 0, isNewBest = false), session.result)
+    }
 
-        assertNotSame(first, session.engine)
+    @Test
+    fun newGameStartsOnAFreshSeedAtAnyTime() {
+        val engines = mutableListOf<FakeEngine>()
+        val session = session(engines)
+        val first = session.engine
+        session.newGame()
+        assertNotSame(first, session.engine, "a game in progress can be dropped")
+        engines.last().phase = RoundPhase.GameOver
+        session.onFrame(GameSession.RESULTS_DELAY_SECONDS, emptyList())
+        session.newGame()
         assertEquals(RoundPhase.Aiming, session.engine.phase)
-        assertEquals(listOf(10L, 11L), seeds, "each game gets a fresh seed")
-        assertFalse(session.canRestart)
+        assertFalse(session.resultsDue, "the game over timer resets")
+        assertEquals(listOf(10L, 11L, 12L), seeds, "each game gets a fresh seed")
+    }
+
+    @Test
+    fun resultCallsOutANewBestOnlyAgainstTheBestBeforeThatGame() {
+        store.putLong(GameSession.BEST_POINTS_KEY, 100)
+        val engines = mutableListOf<FakeEngine>()
+        val session = session(engines)
+        engines.last().apply { points = 250; round = 12; phase = RoundPhase.GameOver }
+        session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 12, points = 250)))
+        assertEquals(GameResult(round = 12, points = 250, bestPoints = 250, isNewBest = true), session.result)
+
+        session.newGame()
+        engines.last().apply { points = 250; phase = RoundPhase.GameOver }
+        session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 1, points = 250)))
+        assertEquals(false, session.result?.isNewBest, "tying the best isn't a new best")
     }
 
     @Test

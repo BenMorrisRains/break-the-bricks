@@ -14,7 +14,8 @@ import kotlin.random.Random
 
 /**
  * One run of play on screen: the current [engine], the best points, and the sound and haptics
- * for what happens. After a game over, [restart] starts a new game on a fresh seed.
+ * for what happens. [newGame] starts a new game on a fresh seed; after a game over, [result]
+ * says how it went.
  *
  * The seed is the only thing picked at random, and it is picked here, outside the engine; the
  * engine itself stays deterministic for a given seed and set of aims.
@@ -33,9 +34,25 @@ class GameSession(
     private val feedback = GameFeedback()
     private var gameOverSeconds = 0f
 
-    /** True once the game is over and the result has been on screen long enough to tap past. */
-    val canRestart: Boolean
-        get() = engine.phase == RoundPhase.GameOver && gameOverSeconds >= RESTART_DELAY_SECONDS
+    /** The best before this game started, so a new best can be called out on the results. */
+    private var bestBeforeGame = bestPoints
+
+    /** True once the game is over and the final board has been on screen long enough to tap past. */
+    val canSkipToResults: Boolean
+        get() = engine.phase == RoundPhase.GameOver && gameOverSeconds >= SKIP_DELAY_SECONDS
+
+    /** True once the game is over and the final board has had its moment; time for the results. */
+    val resultsDue: Boolean
+        get() = engine.phase == RoundPhase.GameOver && gameOverSeconds >= RESULTS_DELAY_SECONDS
+
+    /** How the game went, once it is over; null while it is still running. */
+    val result: GameResult?
+        get() = if (engine.phase != RoundPhase.GameOver) null else GameResult(
+            round = engine.round,
+            points = engine.points,
+            bestPoints = bestPoints,
+            isNewBest = engine.points > bestBeforeGame,
+        )
 
     /** Called every display frame with the time it covered and the events the engine produced. */
     fun onFrame(elapsedSeconds: Float, events: List<GameEvent>) {
@@ -52,12 +69,11 @@ class GameSession(
     /** Called when the player's release fired the round's balls. */
     fun onFired() = play(feedback.fired())
 
-    /** Starts a new game if [canRestart]. Returns true if it did. */
-    fun restart(): Boolean {
-        if (!canRestart) return false
+    /** Drops the current game, finished or not, and starts a new one on a fresh seed. */
+    fun newGame() {
         engine = newEngine(newSeed())
         gameOverSeconds = 0f
-        return true
+        bestBeforeGame = bestPoints
     }
 
     private fun play(feedback: Feedback) {
@@ -68,7 +84,18 @@ class GameSession(
     companion object {
         const val BEST_POINTS_KEY = "best_points"
 
-        /** Keeps a tap that was meant for the last shot from skipping the game over screen. */
-        const val RESTART_DELAY_SECONDS = 0.6f
+        /** Keeps a tap that was meant for the last shot from skipping the final board. */
+        const val SKIP_DELAY_SECONDS = 0.6f
+
+        /** How long the final board stays up before the results screen takes over. */
+        const val RESULTS_DELAY_SECONDS = 1.5f
     }
 }
+
+/** The end of one game, for the results screen. */
+data class GameResult(
+    val round: Int,
+    val points: Long,
+    val bestPoints: Long,
+    val isNewBest: Boolean,
+)
