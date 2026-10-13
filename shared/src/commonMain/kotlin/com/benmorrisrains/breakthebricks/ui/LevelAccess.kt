@@ -3,6 +3,7 @@ package com.benmorrisrains.breakthebricks.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.benmorrisrains.breakthebricks.engine.FreeLevels
 import com.benmorrisrains.breakthebricks.platform.KeyValueStore
 import com.benmorrisrains.breakthebricks.platform.RewardedAds
 
@@ -58,7 +59,7 @@ class LevelAccess(
 
     companion object {
         /** Levels 1 to 10 are free (Ben, 2026-10-12). */
-        const val FREE_LEVELS = 10
+        const val FREE_LEVELS = FreeLevels.COUNT
 
         fun adUnlockKey(number: Int) = "level_${number}_ad_unlocked"
     }

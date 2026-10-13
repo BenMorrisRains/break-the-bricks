@@ -28,7 +28,8 @@ class Board(val columns: Int, val rows: Int) {
     fun clear() = cells.fill(null)
 }
 
-enum class BallState { Waiting, Flying, Landed }
+/** [Gone] is a ball that left the field through the top (see [Ball.exitsAtCeiling]); it sits out the rest of the round. */
+enum class BallState { Waiting, Flying, Landed, Gone }
 
 class Ball(
     var x: Float,
@@ -40,6 +41,13 @@ class Ball(
     var size: Float = 1f,
     /** Bricks this ball still passes through, hitting each once, instead of bouncing off. */
     var pierce: Int = 0,
+    /**
+     * Passes through every brick it hits, hitting each once, until it is clear of all of them;
+     * then it is solid again for the rest of its flight.
+     */
+    var ghost: Boolean = false,
+    /** Leaves the field when it reaches the ceiling instead of bouncing off it. */
+    var exitsAtCeiling: Boolean = false,
 ) {
     /** Cells of bricks this ball is passing through; the physics keeps it, the engine clears it. */
     internal val insideBricks = mutableSetOf<Int>()

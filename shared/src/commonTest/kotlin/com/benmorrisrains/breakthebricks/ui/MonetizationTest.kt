@@ -5,6 +5,7 @@ import com.benmorrisrains.breakthebricks.engine.BigBall
 import com.benmorrisrains.breakthebricks.engine.BrickGame
 import com.benmorrisrains.breakthebricks.engine.FreeLevels
 import com.benmorrisrains.breakthebricks.engine.GridPhysics
+import com.benmorrisrains.breakthebricks.engine.PaidLevels
 import com.benmorrisrains.breakthebricks.platform.FakePurchases
 import com.benmorrisrains.breakthebricks.platform.GameSettings
 import com.benmorrisrains.breakthebricks.platform.InMemoryStore
@@ -51,8 +52,8 @@ class MonetizationTest {
             settings = GameSettings(services),
         )
 
-    /** A paid level after the free ten, with level 10 already passed. */
-    private val level11 = FreeLevels.all.last().copy(number = 11, name = "Paid")
+    /** The first paid level. */
+    private val level11 = PaidLevels[11]
 
     private fun passLevel10() = store.putLong(LevelProgress.starsKey(LevelAccess.FREE_LEVELS), 1L)
 

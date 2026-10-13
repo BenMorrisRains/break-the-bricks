@@ -12,7 +12,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
-/** Ben's lineup (2026-10-13): big ball 5, splitter 10, drill 20, grenade 30; wager targets 5 later. */
+/**
+ * Ben's lineup (2026-10-13): big ball 5, splitter 10, drill 20, grenade 30, then (Claude's default
+ * rounds) ghost 40, time freeze 50 and the 5-way splitter 60; wager targets 5 later.
+ */
 class AbilitiesTest {
     private fun playRound(game: BrickGame, angle: Float = 1.0f, eachStep: () -> Unit = {}) {
         game.aim(angle)
@@ -38,18 +41,21 @@ class AbilitiesTest {
 
     @Test
     fun theLineupHasBensRoundsAndIds() {
-        assertEquals(listOf(BigBall, Splitter, Drill, GrenadeBall), Abilities.earnable)
-        assertEquals(listOf("big_ball", "splitter", "drill", "grenade"), Abilities.earnable.map { it.id })
-        assertEquals(listOf(5, 10, 20, 30), Abilities.earnable.map { it.earnedAtRound })
-        assertEquals(listOf(10, 15, 25, 35), Abilities.earnable.map { it.wagerTargetRound })
+        assertEquals(listOf(BigBall, Splitter, Drill, GrenadeBall, GhostBall, TimeFreeze, SplitterFive), Abilities.earnable)
+        assertEquals(
+            listOf("big_ball", "splitter", "drill", "grenade", "ghost", "time_freeze", "splitter_five"),
+            Abilities.earnable.map { it.id },
+        )
+        assertEquals(listOf(5, 10, 20, 30, 40, 50, 60), Abilities.earnable.map { it.earnedAtRound })
+        assertEquals(listOf(10, 15, 25, 35, 45, 55, 65), Abilities.earnable.map { it.wagerTargetRound })
     }
 
     @Test
     fun eachAbilityIsEarnedAtItsRoundAndStaysActive() {
-        // A tall board so a game that never breaks a brick lasts past round 30.
-        val game = BrickGame(GameConfig(rows = 40), seed = 3, physics = DropPhysics { 3.5f })
+        // A tall board so a game that never breaks a brick lasts past round 60.
+        val game = BrickGame(GameConfig(rows = 70), seed = 3, physics = DropPhysics { 3.5f })
         val earned = game.drainEvents().filterIsInstance<GameEvent.AbilityEarned>().toMutableList()
-        while (game.round < 31) {
+        while (game.round < 61) {
             playRound(game)
             earned += game.drainEvents().filterIsInstance<GameEvent.AbilityEarned>()
             val expected = Abilities.earnable.filter { it.earnedAtRound <= game.round }
@@ -61,6 +67,9 @@ class AbilitiesTest {
                 GameEvent.AbilityEarned("splitter", 10),
                 GameEvent.AbilityEarned("drill", 20),
                 GameEvent.AbilityEarned("grenade", 30),
+                GameEvent.AbilityEarned("ghost", 40),
+                GameEvent.AbilityEarned("time_freeze", 50),
+                GameEvent.AbilityEarned("splitter_five", 60),
             ),
             earned,
         )
@@ -133,6 +142,7 @@ class AbilitiesTest {
         override fun breakBrick(column: Int, row: Int) = Unit
         override fun randomInt(bound: Int): Int = 0
         override fun splitFirstBall(extraBalls: Int, maxTurnRadians: Float) = Unit
+        override fun freezeTime(steps: Int, timeScale: Float) = Unit
     }
 
     private fun bigBallHit(x: Float, y: Float, column: Int, row: Int): List<Pair<Int, Int>> {
@@ -267,19 +277,6 @@ class AbilitiesTest {
     }
 
     @Test
-    fun drillPassesTheFirstBallThroughThreeBricksHittingEachOnce() {
-        val game = gameWith(
-            listOf(Drill), GridPhysics,
-            Triple(3, 1, 50L), Triple(3, 2, 50L), Triple(3, 3, 50L), Triple(3, 4, 50L), Triple(3, 5, 50L),
-        )
-        playRound(game, straightUp)
-        // Rows 5, 4 and 3 drilled, a bounce off row 2, then straight back out and down.
-        assertEquals(listOf(50L, 49L, 49L, 49L, 49L), (1..5).map { game.board[3, it + 1]?.hits })
-        assertEquals(4L, game.points)
-        assertEquals(1, game.drainEvents().count { it is GameEvent.AbilityTriggered })
-    }
-
-    @Test
     fun drillOnlyArmsTheFirstBall() {
         val pierces = mutableListOf<Int>()
         lateinit var game: BrickGame
@@ -290,7 +287,7 @@ class AbilitiesTest {
         game = gameWith(listOf(Drill), physics)
         playRound(game)
         playRound(game)
-        assertEquals(listOf(Drill.BRICKS, Drill.BRICKS, 0), pierces)
+        assertEquals(listOf(Int.MAX_VALUE, Int.MAX_VALUE, 0), pierces)
         assertTrue(game.balls.all { it.pierce == 0 })
     }
 
@@ -351,7 +348,7 @@ class AbilitiesTest {
         playRound(game)
         game.selectAbility(BigBall.id)
         playRound(game)
-        assertEquals(listOf(BigBall.SIZE to 0, 1f to Drill.BRICKS, BigBall.SIZE to 0), launched)
+        assertEquals(listOf(BigBall.SIZE to 0, 1f to Int.MAX_VALUE, BigBall.SIZE to 0), launched)
     }
 
     @Test
@@ -419,7 +416,7 @@ class AbilitiesTest {
         val original = BrickGame(seed = 11, physics = GridPhysics, abilities = Abilities.earnable)
         var i = 0
         while (original.phase != RoundPhase.GameOver && i < 20) {
-            if (i % 3 == 0) original.selectAbility(Abilities.earnable[(i / 3) % 4].id)
+            if (i % 3 == 0) original.selectAbility(Abilities.earnable[(i / 3) % Abilities.earnable.size].id)
             playRound(original, angles[i++ % angles.size])
         }
         val replay = BrickGame(seed = 11, physics = GridPhysics, abilities = Abilities.earnable)

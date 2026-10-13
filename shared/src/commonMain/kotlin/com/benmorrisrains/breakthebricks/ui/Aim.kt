@@ -37,6 +37,20 @@ fun steerAngle(pressAngle: Float, pressX: Float, touchX: Float, columns: Int, mi
     return (pressAngle - (touchX - pressX) / columns * range).coerceIn(minAngle, PI.toFloat() - minAngle)
 }
 
+/** Shortest swipe, in cells, that redirects the balls during a time freeze. */
+const val SWIPE_MIN_CELLS = 0.4f
+
+/**
+ * Direction of a swipe from ([fromX], [fromY]) to ([toX], [toY]) in radians up from the positive
+ * x axis, any way round; null when it is shorter than [minLength] cells.
+ */
+fun swipeAngle(fromX: Float, fromY: Float, toX: Float, toY: Float, minLength: Float = SWIPE_MIN_CELLS): Float? {
+    val dx = toX - fromX
+    val up = fromY - toY
+    if (dx * dx + up * up < minLength * minLength) return null
+    return atan2(up, dx)
+}
+
 /** Far end of the aim line drawn from the launch point. */
 fun aimLineEnd(launchX: Float, floorY: Float, angle: Float, length: Float = AIM_LINE_CELLS): WorldPoint =
     WorldPoint(launchX + cos(angle) * length, floorY - sin(angle) * length)
@@ -49,6 +63,9 @@ fun aimLineEnd(launchX: Float, floorY: Float, angle: Float, length: Float = AIM_
  *   the aim line shows at once and sliding left or right steers it, see [steerAngle].
  *   Sliding up into the field cancels; sliding back below resumes.
  * Only acts while the engine is in [RoundPhase.Aiming]. Positions are in world cells.
+ *
+ * During a time freeze a press starts a swipe instead, and lifting sends every flying ball the
+ * way the finger went (see [swipeAngle] and [GameEngine.redirect]).
  */
 class AimGesture(private val engine: GameEngine) {
     /** True while the finger's position gives a valid aim and the aim line should show. */
@@ -58,12 +75,19 @@ class AimGesture(private val engine: GameEngine) {
     /** Where a steering press started and the aim at that moment; null for a press above the floor. */
     private var steerFrom: Pair<Float, Float>? = null
 
+    /** Where a time-freeze swipe started, and where the finger is now; null when there is no swipe. */
+    private var swipeFrom: WorldPoint? = null
+    private var swipeTo: WorldPoint? = null
+
     fun press(x: Float, y: Float) {
+        swipeFrom = if (engine.timeFrozen) WorldPoint(x, y) else null
+        swipeTo = swipeFrom
         steerFrom = if (y > engine.config.rows) x to engine.aimAngle else null
         move(x, y)
     }
 
     fun move(x: Float, y: Float) {
+        if (swipeFrom != null) swipeTo = WorldPoint(x, y)
         if (engine.phase != RoundPhase.Aiming) {
             isAiming = false
             return
@@ -82,6 +106,13 @@ class AimGesture(private val engine: GameEngine) {
 
     /** Lifts the finger. Returns true if this fired the round's balls. */
     fun release(): Boolean {
+        val from = swipeFrom
+        val to = swipeTo
+        swipeFrom = null
+        swipeTo = null
+        if (from != null && to != null && engine.timeFrozen) {
+            swipeAngle(from.x, from.y, to.x, to.y)?.let(engine::redirect)
+        }
         val fires = isAiming && engine.phase == RoundPhase.Aiming
         isAiming = false
         if (fires) engine.fire()
@@ -91,5 +122,7 @@ class AimGesture(private val engine: GameEngine) {
     /** The gesture was interrupted (e.g. the pointer was lost); nothing fires. */
     fun cancel() {
         isAiming = false
+        swipeFrom = null
+        swipeTo = null
     }
 }

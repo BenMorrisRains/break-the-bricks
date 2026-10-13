@@ -94,15 +94,19 @@ internal class SoundPoolAudio(context: Context) : ToggleableAudio() {
     override fun resumeMusic() = music.resume()
 
     override fun pauseMusic() = music.pause()
+
+    override fun rewindMusic() = music.select(musicTrack)
 }
 
 /**
  * The music loop, streamed to an AudioTrack by its own thread so it repeats without a gap. The
  * thread starts the first time music is wanted, renders the loop there, and then lives as long
- * as the process, parked while the music is paused.
+ * as the process, parked while the music is paused. Selecting another track renders that one
+ * and starts it from the top.
  */
 internal class LoopingTrack {
     @Volatile private var playing = false
+    @Volatile private var selected = 0
     private var thread: Thread? = null
 
     @Synchronized
@@ -120,8 +124,13 @@ internal class LoopingTrack {
         playing = false
     }
 
+    fun select(index: Int) {
+        selected = index
+    }
+
     private fun run() {
-        val samples = ChipMusic.pcm()
+        var loaded = selected
+        var samples = ChipMusic.pcm(loaded)
         val track = try {
             val minBuffer = AudioTrack.getMinBufferSize(
                 ChipMusic.SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT,
@@ -153,6 +162,12 @@ internal class LoopingTrack {
                 if (!playing) {
                     track.pause()
                     while (!playing) LockSupport.park(this)
+                }
+                if (selected != loaded) {
+                    track.flush() // Drop the old track's buffered tail; the track is paused here.
+                    loaded = selected
+                    samples = ChipMusic.pcm(loaded)
+                    at = 0
                 }
                 if (track.playState != AudioTrack.PLAYSTATE_PLAYING) track.play()
                 val count = minOf(chunk, samples.size - at)

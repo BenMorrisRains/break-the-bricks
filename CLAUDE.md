@@ -17,7 +17,7 @@ If code and the doc disagree, the doc wins; if the doc is silent, ask Ben in you
 - All randomness goes through `SeededRandom`. Never use `kotlin.random`, `Math.random` or the time in game logic.
 - Physics runs at a fixed `GameConfig.STEPS_PER_SECOND`. Frame time is only fed to `GameEngine.advance`.
 - The same seed plus the same inputs must always give the same game. Keep it that way, and test it.
-- The UI reads engine state and drains `GameEvent`s. It never changes game state except through `aim`, `selectAbility`, `fire` and `boost`.
+- The UI reads engine state and drains `GameEvent`s. It never changes game state except through `aim`, `selectAbility`, `fire`, `boost` and `redirect` (a time-freeze swipe).
 - Colors come only from `NeonPalette`. No color literals elsewhere.
 - Platform features (sound, haptics, storage, purchases, ads) sit behind the interfaces in `shared/.../platform`. Common code never calls platform APIs directly.
 - Abilities plug in through the `Ability` interface. Don't special-case an ability inside the physics.
@@ -32,8 +32,12 @@ If code and the doc disagree, the doc wins; if the doc is silent, ask Ben in you
 - Power-ups (Ben's lineup, 2026-10-13). Each is earned at its round and stays available for the rest of the game; its wager target is 5 rounds later. One power-up acts per shot, on that round's first ball: with more than one earned, the player taps one in the HUD tray while aiming to pick it, and the pick stays until changed (Ben, 2026-10-13: switch power-ups before shooting):
   - Big ball, round 5 (target 10): the first ball is three times the normal size, and a face hit that overhangs the next brick hits that brick too (Ben, 2026-10-13 playtest: big enough to hit two bricks at a time).
   - Splitter, round 10 (target 15): the first ball splits into 3 on its first hit, and all three fly off in seeded random directions up to about 75 degrees either side of its heading (Ben, 2026-10-13 playtest: "go kind of crazy in different directions").
-  - Drill, round 20 (target 25): the first ball passes through up to 3 bricks, hitting each once, then bounces normally.
+  - Drill, round 20 (target 25): the first ball breaks every brick it touches, whatever its number, and leaves through the top wall instead of bouncing back (Ben, 2026-10-13). The other balls set the launch point.
   - Grenade ball, round 30 (target 35): the first ball explodes on its first hit and destroys that brick plus 3 to 5 nearby bricks (a seeded pick, nearest first, up to 2 cells away), whatever their numbers (Ben, 2026-10-13 playtest; this replaces the 2026-10-12 hit-brick-only rule). Ben moved it off round 5 because it was too powerful early.
+  - Ghost ball, round 40 (target 45): the first ball passes through the bricks in its way, hitting each once, until it reaches open space, then turns solid and bounces around inside the group (Ben, 2026-10-13).
+  - Time freeze, round 50 (target 55): on the first ball's first hit, play slows to 15% for 3 seconds and balls still waiting hold back. One swipe in that time sends every flying ball the way the finger went (never flatter than the minimum aim angle) and ends the freeze. Swipes are recorded with their step for replays (Ben's idea).
+  - 5-way splitter, round 60 (target 65): like the splitter, but into 5 balls (Ben, 2026-10-13).
+  - The earn rounds for ghost ball, time freeze and 5-way splitter are Claude's default (every 10 rounds), not yet confirmed by Ben.
 - No real-money wagers. Players stake earned abilities. A wager is won by reaching the ability's target round.
 - Abilities are never sold for money.
 - In a game, the player can watch a rewarded ad for one power-up (Ben, 2026-10-13). It lasts that game only, starts on the next shot, and never enters the inventory, so it can't be staked. One per game (Claude's default).
@@ -55,7 +59,7 @@ The default Claude cloud environment can't reach `dl.google.com` (Google Maven).
 
 ## Layout
 
-- `engine/src/commonMain/.../engine`: `GameConfig`, `GameEngine` (the contract the UI uses), `Board`, `Brick`, `Ball`, `RoundPhase`, `GameEvent`, `Ability` (plus `BigBall`, `Splitter`, `Drill`, `GrenadeBall`), `SeededRandom`, `RowValues`.
+- `engine/src/commonMain/.../engine`: `GameConfig`, `GameEngine` (the contract the UI uses), `Board`, `Brick`, `Ball`, `RoundPhase`, `GameEvent`, `Ability` (plus `BigBall`, `Splitter`, `Drill`, `GrenadeBall`, `GhostBall`, `TimeFreeze`, `SplitterFive`), `SeededRandom`, `RowValues`.
 - `shared/src/commonMain/.../ui`: `NeonPalette` and, later, screens and the game canvas.
 - `shared/src/commonMain/.../platform`: `AudioPlayer`, `Haptics`, `KeyValueStore`, `RewardedAds` (AdMob), `Purchases` (RevenueCat) and no-op or fake defaults. Store and ad IDs come from Gradle properties (Android) and `iosApp/Configuration/Config.xcconfig` (iOS), never from code.
 - `androidApp`, `iosApp`, `desktopApp`: thin entry points that call `App()`.

@@ -27,10 +27,11 @@ import com.benmorrisrains.breakthebricks.engine.Level
 private const val TILES_PER_ROW = 2
 
 /**
- * The levels as neon tiles with their stars, opened from home. A locked level shows dim and
- * can't be tapped until the one before it is passed. A paid level that is still [paywalled]
- * says so, and tapping it opens the paywall. Below them, once [showsAbilityPreviews], the
- * abilities a game can earn play their preview clips.
+ * Every level as a neon tile with its stars, opened from home: the 10 free levels, then the
+ * paid ones under their own heading. A locked level shows dim and can't be tapped until the one
+ * before it is passed. A paid level that is still [paywalled] says so, and tapping it opens the
+ * paywall. Below them, once [showsAbilityPreviews], the abilities a game can earn play their
+ * preview clips.
  */
 @Composable
 fun LevelSelectScreen(
@@ -49,17 +50,27 @@ fun LevelSelectScreen(
         BasicText("LEVELS", style = neonText(NeonPalette.Ink, 30.sp))
         val total = progress.levels.size * 3
         BasicText("★ ${progress.totalStars}/$total", style = neonText(NeonPalette.Yellow, 16.sp))
-        for (row in progress.levels.chunked(TILES_PER_ROW)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                for (level in row) {
-                    LevelTile(level, progress, paywalled(level.number), onLevel, Modifier.weight(1f))
-                }
-                // Keep a short last row's tiles the same width.
-                repeat(TILES_PER_ROW - row.size) { Box(Modifier.weight(1f)) }
-            }
+        val (free, paid) = progress.levels.partition { !it.isPaid }
+        LevelTiles(free, progress, paywalled, onLevel)
+        if (paid.isNotEmpty()) {
+            BasicText("LEVELS ${paid.first().number}-${paid.last().number}", style = neonText(NeonPalette.Purple, 18.sp))
+            LevelTiles(paid, progress, paywalled, onLevel)
         }
         if (showsAbilityPreviews) LockedAbilities(Abilities.earnable, title = "ABILITIES TO EARN")
         NeonButton("BACK", onBack, color = NeonPalette.Cyan)
+    }
+}
+
+@Composable
+private fun LevelTiles(levels: List<Level>, progress: LevelProgress, paywalled: (Int) -> Boolean, onLevel: (Level) -> Unit) {
+    for (row in levels.chunked(TILES_PER_ROW)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            for (level in row) {
+                LevelTile(level, progress, paywalled(level.number), onLevel, Modifier.weight(1f))
+            }
+            // Keep a short last row's tiles the same width.
+            repeat(TILES_PER_ROW - row.size) { Box(Modifier.weight(1f)) }
+        }
     }
 }
 

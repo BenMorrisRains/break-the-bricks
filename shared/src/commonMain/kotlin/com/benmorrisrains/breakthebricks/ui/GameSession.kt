@@ -15,6 +15,7 @@ import com.benmorrisrains.breakthebricks.engine.PlayerRank
 import com.benmorrisrains.breakthebricks.engine.RoundPhase
 import com.benmorrisrains.breakthebricks.engine.WagerGame
 import com.benmorrisrains.breakthebricks.engine.WagerOutcome
+import com.benmorrisrains.breakthebricks.platform.ChipMusic
 import com.benmorrisrains.breakthebricks.platform.PlatformServices
 import com.benmorrisrains.breakthebricks.progress.RankStore
 import kotlin.random.Random
@@ -47,8 +48,11 @@ class GameSession(
     },
     private val newLevelEngine: (Level) -> GameEngine = { it.newGame(GridPhysics) },
 ) {
-    /** Saved stars and best points of the levels. */
-    val progress = LevelProgress(services.store)
+    /**
+     * Saved stars and best points of the levels. Its own paid-level lock stays open: whether a
+     * paid level needs the purchase or an ad is [access]'s call, so tapping one shows the paywall.
+     */
+    val progress = LevelProgress(services.store, paidLevelsOpen = { true })
 
     /** The one-time purchase, re-checked with the store when the session starts. */
     val unlock = FullUnlock(services.purchases, services.store).also { it.refresh() }
@@ -211,6 +215,14 @@ class GameSession(
         bestBeforeGame = bestPoints
         boostUsed = false
         adMissed = false
+        nextMusicTrack()
+    }
+
+    /** Every game plays the next music track, carrying on from where the last app run left off. */
+    private fun nextMusicTrack() {
+        val track = (services.store.getLong(MUSIC_TRACK_KEY, -1L) + 1).mod(ChipMusic.tracks.size)
+        services.store.putLong(MUSIC_TRACK_KEY, track.toLong())
+        services.audio.setMusicTrack(track)
     }
 
     /**
@@ -264,6 +276,9 @@ class GameSession(
 
     companion object {
         const val BEST_POINTS_KEY = "best_points"
+
+        /** The music track the last game played. */
+        const val MUSIC_TRACK_KEY = "music_track"
 
         /** Keeps a tap that was meant for the last shot from skipping the final board. */
         const val SKIP_DELAY_SECONDS = 0.6f

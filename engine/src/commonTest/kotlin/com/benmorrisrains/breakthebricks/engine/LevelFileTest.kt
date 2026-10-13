@@ -65,7 +65,20 @@ class LevelFileTest {
         assertEquals(7, lineOf(good + "bricks 1 8"))
         assertEquals(7, lineOf(good + "stars 5 9"))
         assertEquals(7, lineOf(good + "ahead -1"))
+        assertEquals(7, lineOf(good + "power laser"))
         assertEquals(1, lineOf("level 1\nname A\nseed 1\nbricks 1 2\nstars 9 5\n"))
+    }
+
+    @Test
+    fun numberingCanStartLaterAndALevelCanLendAPowerUp() {
+        val text = "level 11\nname A\nseed 1\nrows 3\nbricks 1 2\nstars 9 5\npower drill\n" +
+            "level 12\nname B\nseed 2\nrows 3\nbricks 1 2\nstars 9 5\n"
+        val (eleven, twelve) = LevelFile.parse(text, first = 11)
+        assertEquals(11, eleven.number)
+        assertEquals(Drill, eleven.power)
+        assertEquals(null, twelve.power)
+        // Numbering starts at 1 unless told otherwise.
+        assertEquals(1, assertFailsWith<LevelFormatException> { LevelFile.parse(text) }.line)
     }
 
     @Test

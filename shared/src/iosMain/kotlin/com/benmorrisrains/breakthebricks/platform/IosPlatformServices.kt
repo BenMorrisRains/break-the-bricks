@@ -47,20 +47,22 @@ fun createPlatformServices(ads: RewardedAds): PlatformServices {
 
 /**
  * Sound effects through AVAudioPlayer, with a few players per effect so quick hits overlap, and
- * the music through one looping player. The music pauses while the app is in the background.
+ * the music through one looping player per track. The music pauses while the app is in the background.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal class AvAudio : ToggleableAudio() {
     private val players: Map<SoundEffect, List<AVAudioPlayer>>
     private val next = mutableMapOf<SoundEffect, Int>()
 
-    // Built the first time music is wanted, so starting the app doesn't wait on it.
-    private val music: AVAudioPlayer? by lazy {
-        AVAudioPlayer(data = ChipMusic.wav().toNSData(), error = null).apply {
-            numberOfLoops = -1 // forever
-            prepareToPlay()
+    // Each track's player is built the first time it is wanted, so starting the app doesn't wait on it.
+    private val tracks = mutableMapOf<Int, AVAudioPlayer>()
+    private val music: AVAudioPlayer
+        get() = tracks.getOrPut(musicTrack) {
+            AVAudioPlayer(data = ChipMusic.wav(musicTrack).toNSData(), error = null).apply {
+                numberOfLoops = -1 // forever
+                prepareToPlay()
+            }
         }
-    }
 
     init {
         // Ambient: mixes with the player's own music and respects the silent switch.
@@ -75,16 +77,20 @@ internal class AvAudio : ToggleableAudio() {
         center.addObserverForName(UIApplicationWillEnterForegroundNotification, null, main) { _ -> setAppActive(true) }
         // A call or alarm pauses the player; carry on with the loop once it is over.
         center.addObserverForName(AVAudioSessionInterruptionNotification, null, main) { _ ->
-            if (musicOn) music?.play()
+            if (musicOn) music.play()
         }
     }
 
     override fun resumeMusic() {
-        music?.play()
+        music.play()
     }
 
     override fun pauseMusic() {
-        music?.pause()
+        music.pause()
+    }
+
+    override fun rewindMusic() {
+        tracks[musicTrack]?.currentTime = 0.0
     }
 
     override fun playEffect(effect: SoundEffect) {

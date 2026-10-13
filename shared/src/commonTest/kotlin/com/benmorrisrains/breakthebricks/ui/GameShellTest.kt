@@ -2,6 +2,7 @@ package com.benmorrisrains.breakthebricks.ui
 
 import com.benmorrisrains.breakthebricks.engine.FreeLevels
 import com.benmorrisrains.breakthebricks.engine.GameEvent
+import com.benmorrisrains.breakthebricks.engine.PaidLevels
 import com.benmorrisrains.breakthebricks.engine.RoundPhase
 import com.benmorrisrains.breakthebricks.platform.AudioPlayer
 import com.benmorrisrains.breakthebricks.platform.GameSettings
@@ -22,6 +23,7 @@ class GameShellTest {
         var playing = false
         override fun play(effect: SoundEffect) = Unit
         override fun setMusicPlaying(playing: Boolean) { this.playing = playing }
+        override fun setMusicTrack(track: Int) = Unit
         override fun setMusicEnabled(enabled: Boolean) = Unit
         override fun setEffectsEnabled(enabled: Boolean) = Unit
     }
@@ -182,6 +184,21 @@ class GameShellTest {
         shell.goHome()
         shell.playFreePlay()
         assertNull(shell.session.level)
+    }
+
+    @Test
+    fun passingLevelTenLeadsToThePaywallWhileThePaidLevelsAreLocked() {
+        for (number in 1..9) shell.session.progress.record(FreeLevels[number], passed = true, round = 1, points = 1)
+        shell.playLevel(FreeLevels[10])
+        assertEquals(FreeLevels[10], shell.session.level)
+        engines.last().apply { phase = RoundPhase.LevelComplete; points = 50 }
+        shell.onFrame(0.016f, listOf(GameEvent.LevelCompleted(round = 5, points = 50)))
+        shell.onFrame(GameSession.RESULTS_DELAY_SECONDS, emptyList())
+        assertIs<Screen.Results>(shell.screen)
+        assertEquals(PaidLevels[11], shell.nextLevel())
+        shell.playNextLevel()
+        assertEquals(Screen.Paywall(PaidLevels[11]), shell.screen, "a locked paid level shows the paywall instead")
+        assertEquals(FreeLevels[10], shell.session.level, "nothing started")
     }
 
     @Test

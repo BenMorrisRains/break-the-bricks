@@ -107,12 +107,12 @@ class GameShell(
         playLevel(next)
     }
 
-    /** The level after the one just passed, or null when there is none to go to. */
+    /** The level after the one just passed, or null when there is none to go to or it is still locked. */
     fun nextLevel(): Level? {
         val result = session.result ?: return null
         val level = result.level ?: return null
         if (!result.passed) return null
-        return session.progress.levels.firstOrNull { it.number == level.number + 1 }
+        return session.progress.levels.firstOrNull { it.number == level.number + 1 }?.takeIf { session.progress.isUnlocked(it) }
     }
 
     fun openLevels() {
