@@ -87,6 +87,18 @@ class CanvasEffectsTest {
     }
 
     @Test
+    fun theSplitBallsEachGetTheirOwnColor() {
+        // Before a split every ball is plain white.
+        assertTrue((0 until 12).all { splitBallTint(it, ballCount = 12, total = 12) == null })
+        // After it, the first ball and the two new ones (past the round's 12) stand out.
+        val tints = (0 until 14).map { splitBallTint(it, ballCount = 12, total = 14) }
+        assertEquals(Tint.Magenta, tints[0])
+        assertEquals(listOf(Tint.Cyan, Tint.Lime), tints.subList(12, 14))
+        assertTrue(tints.subList(1, 12).all { it == null })
+        assertEquals(3, tints.filterNotNull().toSet().size)
+    }
+
+    @Test
     fun brickTiersMatchThePalette() {
         assertEquals(0, brickTier(hits = 1, roundValue = 1, tiers = 5))
         assertEquals(0, brickTier(hits = 1, roundValue = 55, tiers = 5))
