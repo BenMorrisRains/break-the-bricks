@@ -2,6 +2,7 @@ package com.benmorrisrains.breakthebricks.ui
 
 import com.benmorrisrains.breakthebricks.engine.GameEngine
 import com.benmorrisrains.breakthebricks.engine.GameEvent
+import com.benmorrisrains.breakthebricks.engine.GrenadeBall
 
 /**
  * Whether the round's first ball is still an unexploded ability ball (the grenade), so the
@@ -20,5 +21,6 @@ class AbilityCue {
         }
     }
 
-    fun isArmed(engine: GameEngine): Boolean = engine.activeAbilities.isNotEmpty() && !triggeredThisRound
+    fun isArmed(engine: GameEngine): Boolean =
+        engine.activeAbilities.any { it.id == GrenadeBall.id } && !triggeredThisRound
 }

@@ -1,5 +1,6 @@
 package com.benmorrisrains.breakthebricks.ui
 
+import com.benmorrisrains.breakthebricks.engine.BigBall
 import com.benmorrisrains.breakthebricks.engine.BrickGame
 import com.benmorrisrains.breakthebricks.engine.GameEvent
 import com.benmorrisrains.breakthebricks.engine.GridPhysics
@@ -24,5 +25,11 @@ class AbilityCueTest {
         assertFalse(cue.isArmed(engine))
         cue.update(listOf(GameEvent.RoundStarted(6, 6)))
         assertTrue(cue.isArmed(engine))
+    }
+
+    @Test
+    fun otherAbilitiesAreNotDrawnAsAGrenade() {
+        val engine = BrickGame(seed = 1, physics = GridPhysics, abilities = listOf(BigBall), earnable = emptyList())
+        assertFalse(AbilityCue().isArmed(engine))
     }
 }
