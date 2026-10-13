@@ -8,9 +8,9 @@ package com.benmorrisrains.breakthebricks.engine
  * level 1               # starts a block; levels are numbered 1, 2, 3, ...
  * name Warm Up          # the rest of the line
  * seed 101              # fixes the starting rows and every new row
- * goal 6                # rounds to survive
+ * rows 6                # rounds that bring a new row; then break every brick to pass
  * bricks 1 2            # bricks per new row, min and max
- * stars 15 25           # points for 2 and 3 stars (passing earns 1)
+ * stars 9 7             # clear within 9 rounds for 2 stars, within 7 for 3 (any clear earns 1)
  * ahead 2               # optional: new rows are worth what they'd be 2 rounds later
  * row . . . 1 . . .     # optional starting bricks, top row first, one value or . per column
  * ```
@@ -50,14 +50,14 @@ object LevelFile {
             when (key) {
                 "name" -> current.name = rest.ifEmpty { fail("'name' needs a name") }
                 "seed" -> current.seed = ints(1).single()
-                "goal" -> current.goal = ints(1).single().toInt()
+                "rows" -> current.rows = ints(1).single().toInt()
                 "bricks" -> current.bricks = ints(2).let { (min, max) ->
                     if (min < 1 || max < min || max > columns) fail("bricks must be 1 <= min <= max <= $columns")
                     min.toInt() to max.toInt()
                 }
                 "stars" -> current.stars = ints(2).let { (two, three) ->
-                    if (two < 1 || three < two) fail("stars must be 0 < two <= three")
-                    two to three
+                    if (three < 1 || three > two) fail("stars are rounds for 2 then 3 stars, 0 < three <= two")
+                    two.toInt() to three.toInt()
                 }
                 "ahead" -> current.ahead = ints(1).single().toInt().also { if (it < 0) fail("ahead can't be negative") }
                 "row" -> {
@@ -79,27 +79,27 @@ object LevelFile {
     private class Block(val number: Int, val line: Int) {
         var name: String? = null
         var seed: Long? = null
-        var goal: Int? = null
+        var rows: Int? = null
         var bricks: Pair<Int, Int>? = null
-        var stars: Pair<Long, Long>? = null
+        var stars: Pair<Int, Int>? = null
         var ahead = 0
         val layout = mutableListOf<List<Long?>>()
 
         fun build(): Level {
             fun missing(key: String): Nothing = throw LevelFormatException(line, "level $number has no '$key'")
-            val goal = goal ?: missing("goal")
-            if (goal < 1) throw LevelFormatException(line, "level $number: goal must be at least 1 round")
+            val rows = rows ?: missing("rows")
+            if (rows < 1) throw LevelFormatException(line, "level $number: rows must be at least 1")
             val (min, max) = bricks ?: missing("bricks")
             val (two, three) = stars ?: missing("stars")
             return Level(
                 number = number,
                 name = name ?: missing("name"),
                 seed = seed ?: missing("seed"),
-                goalRounds = goal,
+                rowCount = rows,
                 minBricksPerRow = min,
                 maxBricksPerRow = max,
-                twoStarPoints = two,
-                threeStarPoints = three,
+                twoStarRounds = two,
+                threeStarRounds = three,
                 layout = layout.toList(),
                 valuesAhead = ahead,
             )

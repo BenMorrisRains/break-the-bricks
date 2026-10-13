@@ -40,7 +40,7 @@ class Ball(
 
 /**
  * Where a round is. The UI only accepts aim input in [Aiming]. A game finishes in [GameOver]
- * (a brick reached the floor row) or, in a level, [LevelComplete] (its goal rounds survived).
+ * (a brick reached the floor row) or, in a level, [LevelComplete] (every brick broken).
  */
 enum class RoundPhase {
     Aiming, Firing, Returning, Advancing, GameOver, LevelComplete;

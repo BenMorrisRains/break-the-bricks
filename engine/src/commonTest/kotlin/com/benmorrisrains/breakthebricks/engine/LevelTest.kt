@@ -8,8 +8,8 @@ import kotlin.test.fail
 
 class LevelTest {
     private val level = Level(
-        number = 1, name = "Test", seed = 42, goalRounds = 3,
-        minBricksPerRow = 1, maxBricksPerRow = 2, twoStarPoints = 10, threeStarPoints = 20,
+        number = 1, name = "Test", seed = 42, rowCount = 3,
+        minBricksPerRow = 1, maxBricksPerRow = 2, twoStarRounds = 6, threeStarRounds = 4,
         layout = listOf(listOf(null, 5L, null, null, null, null, 9L)),
     )
 
@@ -39,24 +39,40 @@ class LevelTest {
         val game = level.newGame(DropPhysics { 3.5f })
         assertEquals(1, game.config.minBricksPerRow)
         assertEquals(2, game.config.maxBricksPerRow)
-        assertEquals(3, game.goalRounds)
+        assertEquals(3, game.levelRows)
+    }
+
+    private fun playToTheEnd(game: BrickGame): List<GameEvent> {
+        val events = mutableListOf<GameEvent>()
+        while (!game.phase.isFinished) {
+            playRound(game)
+            events += game.drainEvents()
+            if (game.round > 100) fail("the level never ended")
+        }
+        return events
     }
 
     @Test
-    fun survivingTheGoalRoundsCompletesTheLevel() {
-        val game = level.newGame(DropPhysics { 3.5f })
-        repeat(2) {
-            playRound(game)
-            assertEquals(RoundPhase.Aiming, game.phase)
-        }
-        game.drainEvents()
-        val rowsBefore = game.board.bricks().map { it.row }.toList()
-        playRound(game)
+    fun newRowsStopAfterTheLevelsRowRounds() {
+        val game = level.copy(layout = emptyList()).newGame(DropPhysics { 3.5f })
+        repeat(3) { playRound(game) }
+        assertEquals(4, game.round)
+        assertEquals(RoundPhase.Aiming, game.phase)
+        assertTrue(game.board.bricks().none { it.row == 0 }, "no new row in round 4")
+        assertEquals(4, game.ballCount, "still one more ball every round")
+    }
+
+    @Test
+    fun breakingEveryBrickAfterTheLastRowClearsTheLevel() {
+        val game = level.newGame(ClearPhysics())
+        val startingHits = game.board.bricks().sumOf { it.hits }
+        val events = playToTheEnd(game)
         assertEquals(RoundPhase.LevelComplete, game.phase)
-        assertEquals(3, game.round)
-        assertEquals(listOf<GameEvent>(GameEvent.BallLanded(3.5f, true), GameEvent.BallLanded(3.5f, false), GameEvent.BallLanded(3.5f, false), GameEvent.LevelCompleted(3, 0)), game.drainEvents())
-        // The last round's bricks don't drop, and nothing more happens.
-        assertEquals(rowsBefore, game.board.bricks().map { it.row }.toList())
+        assertTrue(game.board.bricks().none(), "the board is clear")
+        assertTrue(game.round >= level.rowCount)
+        assertEquals(GameEvent.LevelCompleted(game.round, game.points), events.last())
+        assertTrue(game.points >= startingHits)
+        // Nothing more happens once the level is clear.
         game.fire()
         game.advance(1f)
         assertEquals(RoundPhase.LevelComplete, game.phase)
@@ -64,8 +80,25 @@ class LevelTest {
     }
 
     @Test
+    fun anEmptyBoardBeforeTheLastRowIsNotAClear() {
+        val game = level.copy(layout = emptyList(), maxBricksPerRow = 1).newGame(ClearPhysics())
+        playRound(game) // one ball breaks round 1's only brick
+        assertTrue(game.board.bricks().all { it.row == 0 }, "only round 2's new row is left")
+        assertEquals(RoundPhase.Aiming, game.phase)
+        assertEquals(2, game.round)
+    }
+
+    @Test
+    fun outlastingTheRowsWithBricksLeftIsNotAWin() {
+        // Ben's playtest bug: the old goal said "clear" while bricks were still standing.
+        val events = playToTheEnd(level.newGame(DropPhysics { 3.5f }))
+        assertTrue(events.none { it is GameEvent.LevelCompleted })
+        assertTrue(events.last() is GameEvent.GameOver)
+    }
+
+    @Test
     fun aBrickOnTheFloorBeforeTheGoalFailsTheLevel() {
-        val deep = level.copy(goalRounds = 20, layout = List(7) { if (it == 6) List(7) { 1L } else List(7) { null } })
+        val deep = level.copy(rowCount = 20, layout = List(7) { if (it == 6) List(7) { 1L } else List(7) { null } })
         val game = deep.newGame(DropPhysics { 3.5f })
         playRound(game) // the layout's bottom row starts on row 7 and drops onto the floor row
         assertEquals(RoundPhase.GameOver, game.phase)
@@ -90,12 +123,13 @@ class LevelTest {
     }
 
     @Test
-    fun starsComeFromPassingAndPoints() {
-        assertEquals(0, level.stars(passed = false, points = 500))
-        assertEquals(1, level.stars(passed = true, points = 9))
-        assertEquals(2, level.stars(passed = true, points = 10))
-        assertEquals(2, level.stars(passed = true, points = 19))
-        assertEquals(3, level.stars(passed = true, points = 20))
+    fun starsComeFromClearingInFewerRounds() {
+        assertEquals(0, level.stars(passed = false, rounds = 3))
+        assertEquals(3, level.stars(passed = true, rounds = 3))
+        assertEquals(3, level.stars(passed = true, rounds = 4))
+        assertEquals(2, level.stars(passed = true, rounds = 5))
+        assertEquals(2, level.stars(passed = true, rounds = 6))
+        assertEquals(1, level.stars(passed = true, rounds = 7))
     }
 
     @Test

@@ -11,16 +11,16 @@ class LevelFileTest {
         level 1
         name Warm Up   # trailing comment
         seed 101
-        goal 5
+        rows 5
         bricks 1 2
-        stars 12 16
+        stars 16 12
 
         level 2
         name Two Rows
         seed -7
-        goal 9
+        rows 9
         bricks 2 4
-        stars 40 60
+        stars 14 11
         ahead 3
         row 1 . . 12 . . 1
         row . 2 . . . 2 .
@@ -29,15 +29,15 @@ class LevelFileTest {
     @Test
     fun parsesEveryField() {
         val (first, second) = LevelFile.parse(sample)
-        assertEquals(Level(1, "Warm Up", 101, 5, 1, 2, 12, 16), first)
+        assertEquals(Level(1, "Warm Up", 101, 5, 1, 2, 16, 12), first)
         assertEquals(2, second.number)
         assertEquals("Two Rows", second.name)
         assertEquals(-7L, second.seed)
-        assertEquals(9, second.goalRounds)
+        assertEquals(9, second.rowCount)
         assertEquals(2, second.minBricksPerRow)
         assertEquals(4, second.maxBricksPerRow)
-        assertEquals(40L, second.twoStarPoints)
-        assertEquals(60L, second.threeStarPoints)
+        assertEquals(14, second.twoStarRounds)
+        assertEquals(11, second.threeStarRounds)
         assertEquals(3, second.valuesAhead)
         assertEquals(0, first.valuesAhead)
         assertEquals(
@@ -54,7 +54,7 @@ class LevelFileTest {
     @Test
     fun errorsNameTheLine() {
         fun lineOf(text: String) = assertFailsWith<LevelFormatException> { LevelFile.parse(text) }.line
-        val good = "level 1\nname A\nseed 1\ngoal 3\nbricks 1 2\nstars 5 9\n"
+        val good = "level 1\nname A\nseed 1\nrows 3\nbricks 1 2\nstars 9 5\n"
         assertEquals(1, lineOf("seed 4"))
         assertEquals(7, lineOf(good + "level 3"))
         assertEquals(7, lineOf(good + "row 1 1 1"))
@@ -63,14 +63,14 @@ class LevelFileTest {
         assertEquals(7, lineOf(good + "speed 3"))
         assertEquals(7, lineOf(good + "bricks 3 2"))
         assertEquals(7, lineOf(good + "bricks 1 8"))
-        assertEquals(7, lineOf(good + "stars 9 5"))
+        assertEquals(7, lineOf(good + "stars 5 9"))
         assertEquals(7, lineOf(good + "ahead -1"))
-        assertEquals(1, lineOf("level 1\nname A\nseed 1\nbricks 1 2\nstars 5 9\n"))
+        assertEquals(1, lineOf("level 1\nname A\nseed 1\nbricks 1 2\nstars 9 5\n"))
     }
 
     @Test
     fun aMissingKeyIsAnError() {
-        val error = assertFailsWith<LevelFormatException> { LevelFile.parse("level 1\nname A\ngoal 3\nbricks 1 2\nstars 5 9") }
+        val error = assertFailsWith<LevelFormatException> { LevelFile.parse("level 1\nname A\nrows 3\nbricks 1 2\nstars 9 5") }
         assertTrue("seed" in error.message.orEmpty())
     }
 }
