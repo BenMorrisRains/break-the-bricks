@@ -71,9 +71,10 @@ class EarnedCardsTest {
 
     @Test
     fun lockedAbilitiesAreTheOnesTheGameDidNotReach() {
+        val big = TestAbility("big", 5)
         val laser = TestAbility("laser", 10)
-        val earnable = listOf(laser, GrenadeBall)
-        assertEquals(listOf(GrenadeBall, laser), lockedAbilities(reachedRound = 3, earnable = earnable))
+        val earnable = listOf(laser, big)
+        assertEquals(listOf(big, laser), lockedAbilities(reachedRound = 3, earnable = earnable))
         assertEquals(listOf(laser), lockedAbilities(reachedRound = 5, earnable = earnable))
         assertTrue(lockedAbilities(reachedRound = 12, earnable = earnable).isEmpty())
     }
