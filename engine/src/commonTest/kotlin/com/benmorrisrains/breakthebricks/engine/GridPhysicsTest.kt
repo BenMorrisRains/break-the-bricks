@@ -450,4 +450,63 @@ class GridPhysicsTest {
         assertNear(3.5f, x)
         assertNear(3f + r, y)
     }
+
+    @Test
+    fun aBallsReusedSweepCarriesNothingFromOneStepToTheNext() {
+        // The same ball steps on a busy board, then is put back at a start on another board: it must
+        // fly exactly like a fresh ball from that start.
+        val busy = board().apply { put(2, 3); put(3, 3); put(4, 3); put(3, 1) }
+        val ball = Ball(x = 3.2f, y = 6f, vx = 5f, vy = -15f)
+        repeat(60) { step(ball, busy) }
+
+        val other = board().apply { put(1, 2); put(5, 4) }
+        val fresh = Ball(x = 1.7f, y = 7f, vx = -9f, vy = -12f)
+        ball.x = fresh.x; ball.y = fresh.y; ball.vx = fresh.vx; ball.vy = fresh.vy
+        repeat(200) {
+            val freshLanded = step(fresh, other, listener = NoHits)
+            val reusedLanded = step(ball, other, listener = NoHits)
+            assertEquals(freshLanded, reusedLanded)
+            assertEquals(fresh.x, ball.x)
+            assertEquals(fresh.y, ball.y)
+            assertEquals(fresh.vx, ball.vx)
+            assertEquals(fresh.vy, ball.vy)
+        }
+    }
+
+    @Test
+    fun gamesSteppedTogetherPlayTheSameAsGamesSteppedAlone() {
+        // Physics keeps working state per ball, so two games running side by side can't disturb each other.
+        val angles = listOf(1.3f, 0.5f, 2.4f, 1.0f, 1.9f, 0.3f)
+        fun BrickGame.frame(shot: Int) {
+            if (phase == RoundPhase.Aiming) {
+                aim(angles[shot % angles.size])
+                fire()
+            }
+            advance(1f / 60)
+        }
+        val alone = listOf(11L, 12L).map { seed ->
+            val game = BrickGame(seed = seed, physics = GridPhysics)
+            var frames = 0
+            while (!game.phase.isFinished && frames < 20_000) {
+                game.frame(game.round)
+                frames++
+            }
+            game.points to game.steps
+        }
+        val a = BrickGame(seed = 11L, physics = GridPhysics)
+        val b = BrickGame(seed = 12L, physics = GridPhysics)
+        var frames = 0
+        while ((!a.phase.isFinished || !b.phase.isFinished) && frames < 20_000) {
+            if (!a.phase.isFinished) a.frame(a.round)
+            if (!b.phase.isFinished) b.frame(b.round)
+            frames++
+        }
+        assertEquals(alone, listOf(a.points to a.steps, b.points to b.steps))
+    }
+
+    /** Ignores contacts and leaves the board alone. */
+    private object NoHits : BallContacts {
+        override fun brickHit(column: Int, row: Int) = Unit
+        override fun wallBounce() = Unit
+    }
 }
