@@ -4,6 +4,7 @@ import com.benmorrisrains.breakthebricks.engine.Ability
 import com.benmorrisrains.breakthebricks.engine.Ball
 import com.benmorrisrains.breakthebricks.engine.Board
 import com.benmorrisrains.breakthebricks.engine.BrickGame
+import com.benmorrisrains.breakthebricks.engine.FreeLevels
 import com.benmorrisrains.breakthebricks.engine.GameConfig
 import com.benmorrisrains.breakthebricks.engine.GameEngine
 import com.benmorrisrains.breakthebricks.engine.GameEvent
@@ -136,5 +137,53 @@ class GameSessionTest {
         assertEquals(listOf(SoundEffect.Fire, SoundEffect.BrickBreak), recorder.sounds)
         assertEquals(listOf(HapticStrength.Light), recorder.taps, "the break tap is rate-limited after the fire tap")
         assertSame(engine, session.engine)
+    }
+
+    @Test
+    fun aLevelPlaysItsOwnSeedAndSavesItsOwnResult() {
+        val engines = mutableListOf<FakeEngine>()
+        val levelsPlayed = mutableListOf<Int>()
+        val session = GameSession(
+            services,
+            newSeed = { nextSeed++ },
+            newEngine = { FakeEngine().also { engines += it } },
+            newLevelEngine = { level -> levelsPlayed += level.number; FakeEngine().also { engines += it } },
+        )
+        store.putLong(GameSession.BEST_POINTS_KEY, 500)
+        val level = FreeLevels[1]
+        session.newGame(level)
+        assertEquals(listOf(1), levelsPlayed)
+        assertEquals(level, session.level)
+        assertEquals(0, session.bestPoints, "a level has its own best, not free play's")
+
+        engines.last().apply { points = level.threeStarPoints; round = level.goalRounds; phase = RoundPhase.LevelComplete }
+        session.onFrame(0.016f, listOf(GameEvent.LevelCompleted(level.goalRounds, level.threeStarPoints)))
+        val result = session.result
+        assertEquals(true, result?.passed)
+        assertEquals(3, result?.stars)
+        assertEquals(level, result?.level)
+        assertEquals(3, session.progress.stars(1))
+        assertTrue(session.progress.isUnlocked(2))
+        assertEquals(level.threeStarPoints, store.getLong(LevelProgress.bestPointsKey(1), 0))
+        assertEquals(500, store.getLong(GameSession.BEST_POINTS_KEY, 0), "free play's best is untouched")
+
+        session.onFrame(GameSession.RESULTS_DELAY_SECONDS, emptyList())
+        assertTrue(session.resultsDue, "a cleared level moves on to the results too")
+
+        session.newGame()
+        assertNull(session.level)
+        assertEquals(500, session.bestPoints)
+    }
+
+    @Test
+    fun aFailedLevelEarnsNoStars() {
+        val engines = mutableListOf<FakeEngine>()
+        val session = GameSession(services, newEngine = { FakeEngine() }, newLevelEngine = { FakeEngine().also { engines += it } })
+        session.newGame(FreeLevels[1])
+        engines.last().apply { points = 999; phase = RoundPhase.GameOver }
+        session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 3, points = 999)))
+        assertEquals(false, session.result?.passed)
+        assertEquals(0, session.result?.stars)
+        assertEquals(0, session.progress.stars(1))
     }
 }

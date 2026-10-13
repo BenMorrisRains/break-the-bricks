@@ -1,5 +1,6 @@
 package com.benmorrisrains.breakthebricks.ui
 
+import com.benmorrisrains.breakthebricks.engine.FreeLevels
 import com.benmorrisrains.breakthebricks.engine.GameEvent
 import com.benmorrisrains.breakthebricks.engine.RoundPhase
 import com.benmorrisrains.breakthebricks.platform.GameSettings
@@ -22,6 +23,7 @@ class GameShellTest {
             services,
             newSeed = { seed++ },
             newEngine = { GameSessionTest.FakeEngine().also { engines += it } },
+            newLevelEngine = { GameSessionTest.FakeEngine().also { engines += it } },
         ),
         settings = GameSettings(services),
     )
@@ -140,5 +142,42 @@ class GameShellTest {
         assertEquals(1f, RankProgress(3, 200, 150).fraction)
         assertEquals(0, RankProgress(3, 200, 150).pointsToGo)
         assertEquals(0f, RankProgress(1, 0, 0).fraction)
+    }
+
+    @Test
+    fun levelsOpenFromHomeAndOnlyUnlockedOnesPlay() {
+        shell.openLevels()
+        assertEquals(Screen.Levels, shell.screen)
+        shell.playLevel(FreeLevels[2])
+        assertEquals(Screen.Levels, shell.screen, "level 2 is locked until level 1 is passed")
+        shell.playLevel(FreeLevels[1])
+        assertEquals(Screen.Game, shell.screen)
+        assertEquals(FreeLevels[1], shell.session.level)
+    }
+
+    @Test
+    fun aPassedLevelOffersTheNextAndPlayAgainRetriesTheSameLevel() {
+        shell.playLevel(FreeLevels[1])
+        assertNull(shell.nextLevel())
+        engines.last().apply { phase = RoundPhase.LevelComplete; points = 50 }
+        shell.onFrame(0.016f, listOf(GameEvent.LevelCompleted(round = 5, points = 50)))
+        shell.onFrame(GameSession.RESULTS_DELAY_SECONDS, emptyList())
+        val results = assertIs<Screen.Results>(shell.screen)
+        assertEquals(true, results.result.passed)
+        assertEquals(FreeLevels[2], shell.nextLevel())
+
+        shell.play()
+        assertEquals(FreeLevels[1], shell.session.level, "play again replays the same level")
+        shell.goHome()
+        shell.playFreePlay()
+        assertNull(shell.session.level)
+    }
+
+    @Test
+    fun aFinishedLevelCannotBePaused() {
+        shell.playLevel(FreeLevels[1])
+        engines.last().phase = RoundPhase.LevelComplete
+        shell.pause()
+        assertFalse(shell.paused)
     }
 }

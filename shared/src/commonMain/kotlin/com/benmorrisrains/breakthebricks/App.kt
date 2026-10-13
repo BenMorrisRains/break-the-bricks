@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -15,6 +17,7 @@ import com.benmorrisrains.breakthebricks.ui.GameScreen
 import com.benmorrisrains.breakthebricks.ui.GameSession
 import com.benmorrisrains.breakthebricks.ui.GameShell
 import com.benmorrisrains.breakthebricks.ui.HomeScreen
+import com.benmorrisrains.breakthebricks.ui.LevelSelectScreen
 import com.benmorrisrains.breakthebricks.ui.NeonPalette
 import com.benmorrisrains.breakthebricks.ui.PauseMenu
 import com.benmorrisrains.breakthebricks.ui.ResultsScreen
@@ -22,8 +25,8 @@ import com.benmorrisrains.breakthebricks.ui.Screen
 import com.benmorrisrains.breakthebricks.ui.SettingsScreen
 
 /**
- * Root composable for every platform: home, the game with its pause menu, results and settings,
- * with sound, haptics, saved settings and the saved best score from [services].
+ * Root composable for every platform: home, level select, the game with its pause menu, results
+ * and settings, with sound, haptics, saved settings, level progress and best scores from [services].
  */
 @Composable
 fun App(services: PlatformServices = remember { PlatformServices() }) {
@@ -37,8 +40,15 @@ fun App(services: PlatformServices = remember { PlatformServices() }) {
             Screen.Home -> HomeScreen(
                 bestPoints = shell.session.bestPoints,
                 rank = shell.rank(),
-                onPlay = shell::play,
+                onPlay = shell::playFreePlay,
+                onLevels = shell::openLevels,
                 onSettings = shell::openSettings,
+                modifier = content,
+            )
+            Screen.Levels -> LevelSelectScreen(
+                progress = shell.session.progress,
+                onLevel = shell::playLevel,
+                onBack = shell::goHome,
                 modifier = content,
             )
             Screen.Game -> {
@@ -51,6 +61,7 @@ fun App(services: PlatformServices = remember { PlatformServices() }) {
                     onGameOverTap = shell::onGameOverTap,
                     paused = shell.paused,
                     onPause = shell::pause,
+                    level = session.level,
                     modifier = content,
                 )
                 if (shell.paused) {
@@ -68,7 +79,10 @@ fun App(services: PlatformServices = remember { PlatformServices() }) {
                 rank = shell.rank(),
                 onPlayAgain = shell::play,
                 onHome = shell::goHome,
-                modifier = content,
+                // Level results carry more lines and buttons than a short phone screen holds.
+                modifier = content.verticalScroll(rememberScrollState()),
+                onNextLevel = if (shell.nextLevel() != null) shell::playNextLevel else null,
+                onLevels = if (screen.result.level != null) shell::openLevels else null,
             )
             is Screen.Settings -> SettingsScreen(
                 settings = shell.settings,

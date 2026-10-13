@@ -16,12 +16,13 @@ import androidx.compose.ui.unit.sp
 import com.benmorrisrains.breakthebricks.platform.GameSettings
 import com.benmorrisrains.breakthebricks.platform.Setting
 
-/** The first screen: title, best points, the player's rank once it exists, Play and Settings. */
+/** The first screen: title, best points, the player's rank once it exists, Play, Levels and Settings. */
 @Composable
 fun HomeScreen(
     bestPoints: Long,
     rank: RankProgress?,
     onPlay: () -> Unit,
+    onLevels: () -> Unit,
     onSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -31,6 +32,7 @@ fun HomeScreen(
         RankPanel(rank)
         Spacer(Modifier.height(16.dp))
         NeonButton("PLAY", onPlay, color = NeonPalette.Lime)
+        NeonButton("LEVELS", onLevels, color = NeonPalette.Yellow)
         NeonButton("SETTINGS", onSettings, color = NeonPalette.Purple)
     }
 }
@@ -61,7 +63,10 @@ fun PauseMenu(
     }
 }
 
-/** After a game over: points, the round reached, the best, rank progress, Play again and Home. */
+/**
+ * After a game: points, the round reached, the best, rank progress, Play again and Home. After
+ * a level it also shows pass or fail with the stars, Next level once passed, and Levels.
+ */
 @Composable
 fun ResultsScreen(
     result: GameResult,
@@ -69,17 +74,30 @@ fun ResultsScreen(
     onPlayAgain: () -> Unit,
     onHome: () -> Unit,
     modifier: Modifier = Modifier,
+    onNextLevel: (() -> Unit)? = null,
+    onLevels: (() -> Unit)? = null,
 ) {
+    val level = result.level
     MenuColumn(modifier) {
-        MenuTitle("GAME OVER")
+        when {
+            level == null -> MenuTitle("GAME OVER")
+            result.passed -> MenuTitle("LEVEL ${level.number} CLEAR", NeonPalette.Lime)
+            else -> MenuTitle("LEVEL ${level.number} FAILED")
+        }
+        if (level != null) {
+            MenuLabel(starText(result.stars), NeonPalette.Yellow, 32.sp)
+            if (!result.passed) MenuLabel("SURVIVE ${level.goalRounds} ROUNDS TO PASS", NeonPalette.Cyan)
+        }
         MenuLabel(formatPoints(result.points), NeonPalette.Ink, 44.sp)
         MenuLabel("POINTS", NeonPalette.Purple)
         if (result.isNewBest) MenuLabel("NEW BEST!", NeonPalette.Yellow, 20.sp)
-        MenuLabel("ROUND ${result.round}", NeonPalette.Cyan, 18.sp)
+        MenuLabel(roundLabel(result.round, level?.goalRounds), NeonPalette.Cyan, 18.sp)
         MenuLabel("BEST ${formatPoints(result.bestPoints)}")
         RankPanel(rank)
         Spacer(Modifier.height(16.dp))
-        NeonButton("PLAY AGAIN", onPlayAgain, color = NeonPalette.Lime)
+        if (onNextLevel != null) NeonButton("NEXT LEVEL", onNextLevel, color = NeonPalette.Lime)
+        NeonButton(if (level == null) "PLAY AGAIN" else "RETRY", onPlayAgain, color = if (onNextLevel == null) NeonPalette.Lime else NeonPalette.Orange)
+        if (onLevels != null) NeonButton("LEVELS", onLevels, color = NeonPalette.Yellow)
         NeonButton("HOME", onHome, color = NeonPalette.Cyan)
     }
 }

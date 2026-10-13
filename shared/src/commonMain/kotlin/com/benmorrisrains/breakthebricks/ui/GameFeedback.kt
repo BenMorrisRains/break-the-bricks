@@ -56,6 +56,7 @@ class GameFeedback(
                     sounds += SoundEffect.GameOver
                     tap(HapticStrength.Heavy)
                 }
+                is GameEvent.LevelCompleted -> tap(HapticStrength.Medium)
                 is GameEvent.BallLanded, is GameEvent.RoundStarted -> Unit
             }
         }

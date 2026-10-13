@@ -10,4 +10,6 @@ sealed interface GameEvent {
     data class AbilityTriggered(val abilityId: String, val column: Int, val row: Int) : GameEvent
     data class AbilityEarned(val abilityId: String, val round: Int) : GameEvent
     data class GameOver(val round: Int, val points: Long) : GameEvent
+    /** A level's goal rounds were survived; [round] is the last one played. */
+    data class LevelCompleted(val round: Int, val points: Long) : GameEvent
 }
