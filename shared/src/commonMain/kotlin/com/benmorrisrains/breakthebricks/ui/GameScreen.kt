@@ -7,10 +7,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -39,7 +42,8 @@ private const val MAX_FRAME_SECONDS = 0.1f
  * frame (60 or 120 Hz) and hands each frame's time and drained events to [onFrame] for sound and
  * haptics. [onFire] runs when a release fires the balls; [onGameOverTap] when the field is tapped
  * after a game over. While [paused] the engine isn't advanced; [onPause] adds a pause button to
- * the HUD. [level] is the level being played, or null in free play.
+ * the HUD. [level] is the level being played, or null in free play. [hudRank] gives the rank
+ * and the bar to the next rank for the points scored so far.
  */
 @Composable
 fun GameScreen(
@@ -52,6 +56,7 @@ fun GameScreen(
     paused: Boolean = false,
     onPause: (() -> Unit)? = null,
     level: Level? = null,
+    hudRank: (points: Long) -> HudRank = { HudRank(rank = 1, progress = 0f) },
 ) {
     val frame = remember { mutableLongStateOf(0L) }
     val flashes = remember(engine) { BrickFlashes() }
@@ -76,6 +81,7 @@ fun GameScreen(
     }
     Column(modifier) {
         GameHud(engine, frame, bestPoints, onPause = onPause)
+        RankBar(engine, frame, hudRank)
         Box(Modifier.fillMaxWidth().height(1.dp).background(NeonPalette.Purple.copy(alpha = 0.5f)))
         GameCanvas(
             engine = engine,
@@ -120,6 +126,23 @@ fun GameHud(
             modifier = Modifier.align(Alignment.CenterEnd),
             style = arcadeStyle(NeonPalette.Purple, 14.sp),
         )
+    }
+}
+
+/** The player's rank on the left and a neon bar of points to the next rank beside it. */
+@Composable
+fun RankBar(engine: GameEngine, frame: LongState, hudRank: (points: Long) -> HudRank, modifier: Modifier = Modifier) {
+    val latestHudRank by rememberUpdatedState(hudRank)
+    val shown by remember(engine) { derivedStateOf { frame.longValue; latestHudRank(engine.points) } }
+    Row(
+        modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BasicText(text = "RANK ${shown.rank}", style = arcadeStyle(NeonPalette.Cyan, 12.sp))
+        Spacer(Modifier.width(10.dp))
+        Box(Modifier.weight(1f).height(6.dp).background(NeonPalette.Dim)) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(shown.progress.coerceIn(0f, 1f)).background(NeonPalette.Lime))
+        }
     }
 }
 

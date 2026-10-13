@@ -22,11 +22,15 @@ data class GameConfig(
     val maxBricksPerRow: Int = 6,
     /** Value of the bricks in the row spawned at the start of a round. */
     val rowValues: RowValues = RowValues.FibonacciEighths,
+    /** Rows of bricks on the board when round 1 starts. Higher ranks start with more. */
+    val startingRows: Int = 1,
 ) {
     init {
         require(columns > 0 && rows > 1)
         require(fireInterval > 0f && advanceSeconds >= 0f && ballSpeed > 0f)
         require(minBricksPerRow in 1..columns && maxBricksPerRow in minBricksPerRow..columns)
+        // At least one empty row above the floor row, or the game would be over before it began.
+        require(startingRows in 1..rows - 2)
     }
 
     companion object {

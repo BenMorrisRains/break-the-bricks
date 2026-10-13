@@ -26,6 +26,16 @@ fun interface RowValues {
     }
 }
 
+/**
+ * These values started [rounds] rounds further along: round 1 is worth what round 1 + [rounds]
+ * is worth here. Higher player ranks use this to start on tougher rows.
+ */
+fun RowValues.startingAhead(rounds: Int): RowValues {
+    require(rounds >= 0)
+    if (rounds == 0) return this
+    return RowValues { round -> valueFor(round + rounds) }
+}
+
 /** fibonacci(1) = 1, fibonacci(2) = 1, fibonacci(3) = 2, ... Saturates at [Long.MAX_VALUE]. */
 fun fibonacci(n: Int): Long {
     require(n >= 1) { "round numbers start at 1" }

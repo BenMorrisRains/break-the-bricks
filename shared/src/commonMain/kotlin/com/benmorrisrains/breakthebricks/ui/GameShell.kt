@@ -21,8 +21,8 @@ sealed interface Screen {
  * Which screen is showing and whether the game is paused. The game stays in [session] while
  * the pause menu or settings are open, so it picks up exactly where it stopped.
  *
- * [rank] is where the player's rank and progress come from once task T15 saves them; until
- * then it gives null and the home and results screens leave the rank out.
+ * [rank] is where the player's rank and progress come from; null leaves the rank off the home
+ * and results screens.
  */
 class GameShell(
     val session: GameSession,
@@ -112,7 +112,7 @@ class GameShell(
 
 /**
  * The player's rank and how far they are toward the next one, as the home and results screens
- * show it. Task T15 owns the rank rules and fills this in.
+ * show it. [GameSession.rankProgress] fills it in from the saved rank.
  */
 data class RankProgress(val rank: Int, val pointsIntoRank: Long, val pointsForNextRank: Long) {
     val fraction: Float

@@ -5,12 +5,15 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.benmorrisrains.breakthebricks.engine.BrickGame
+import com.benmorrisrains.breakthebricks.engine.Difficulty
 import com.benmorrisrains.breakthebricks.engine.GameEngine
 import com.benmorrisrains.breakthebricks.engine.GameEvent
 import com.benmorrisrains.breakthebricks.engine.GridPhysics
 import com.benmorrisrains.breakthebricks.engine.Level
+import com.benmorrisrains.breakthebricks.engine.PlayerRank
 import com.benmorrisrains.breakthebricks.engine.RoundPhase
 import com.benmorrisrains.breakthebricks.platform.PlatformServices
+import com.benmorrisrains.breakthebricks.progress.RankStore
 import kotlin.random.Random
 
 /**
@@ -18,13 +21,18 @@ import kotlin.random.Random
  * for what happens. [newGame] starts a new game: free play on a fresh seed, or a [Level] on its
  * own fixed seed. Once the game is finished, [result] says how it went.
  *
+ * Free-play games are built for the player's rank with [Difficulty.forRank]; levels keep their
+ * own layouts. Every game's points, free play or level, count toward the next rank when it ends.
+ *
  * The seed is the only thing picked at random, and it is picked here, outside the engine; the
  * engine itself stays deterministic for a given seed and set of aims.
  */
 class GameSession(
     private val services: PlatformServices,
     private val newSeed: () -> Long = { Random.nextLong() },
-    private val newEngine: (seed: Long) -> GameEngine = { seed -> BrickGame(seed = seed, physics = GridPhysics) },
+    private val newEngine: (seed: Long, rank: Int) -> GameEngine = { seed, rank ->
+        BrickGame(Difficulty.forRank(rank), seed = seed, physics = GridPhysics)
+    },
     private val newLevelEngine: (Level) -> GameEngine = { it.newGame(GridPhysics) },
 ) {
     /** Saved stars and best points of the levels. */
@@ -34,7 +42,23 @@ class GameSession(
     var level: Level? by mutableStateOf<Level?>(null)
         private set
 
-    var engine: GameEngine by mutableStateOf(newEngine(newSeed()))
+    private val rankStore = RankStore(services.store)
+
+    /** The saved rank, including the current game's points once it is over. */
+    var playerRank: PlayerRank by mutableStateOf(rankStore.load())
+        private set
+
+    /** The rank the current game was started at; free play is built for it. */
+    var gameRank: Int by mutableStateOf(playerRank.rank)
+        private set
+
+    /** Set when the game just finished took the player up a rank, for the rank-up banner. */
+    var rankUp: RankUp? by mutableStateOf(null)
+        private set
+
+    private var pointsCounted = false
+
+    var engine: GameEngine by mutableStateOf(newEngine(newSeed(), gameRank))
         private set
 
     /** The best of the current mode: free play, or the level being played. */
@@ -68,6 +92,7 @@ class GameSession(
                 level = level,
                 passed = passed,
                 stars = level?.stars(passed, engine.points) ?: 0,
+                rankUp = rankUp,
             )
         }
 
@@ -84,6 +109,21 @@ class GameSession(
         play(feedback.frame(elapsedSeconds, events))
     }
 
+    /** The saved rank as the home and results screens show it. */
+    fun rankProgress(): RankProgress =
+        RankProgress(playerRank.rank, playerRank.pointsIntoRank, playerRank.pointsForNextRank)
+
+    /**
+     * The rank and bar for the HUD while the current game has scored [points]. During a game the
+     * bar fills live but the rank stays the one the game started at, topping out at full; the
+     * new rank shows once the game is over.
+     */
+    fun hudRank(points: Long): HudRank {
+        if (pointsCounted) return HudRank(playerRank.rank, playerRank.progress)
+        val live = playerRank.adding(points)
+        return if (live.rank > gameRank) HudRank(gameRank, 1f) else HudRank(gameRank, live.progress)
+    }
+
     /** Called when the player's release fired the round's balls. */
     fun onFired() = play(feedback.fired())
 
@@ -93,7 +133,10 @@ class GameSession(
      */
     fun newGame(level: Level? = null) {
         this.level = level
-        engine = if (level == null) newEngine(newSeed()) else newLevelEngine(level)
+        gameRank = playerRank.rank
+        rankUp = null
+        pointsCounted = false
+        engine = if (level == null) newEngine(newSeed(), gameRank) else newLevelEngine(level)
         bestPoints = services.store.getLong(bestPointsKey(level), 0L)
         gameOverSeconds = 0f
         bestBeforeGame = bestPoints
@@ -102,6 +145,11 @@ class GameSession(
     private fun finish(passed: Boolean, points: Long) {
         val level = level
         if (level != null) progress.record(level, passed, points)
+        if (!pointsCounted) {
+            pointsCounted = true
+            playerRank = rankStore.addPoints(points)
+            if (playerRank.rank > gameRank) rankUp = RankUp(from = gameRank, to = playerRank.rank)
+        }
         if (points > bestPoints) {
             bestPoints = points
             services.store.putLong(bestPointsKey(level), points)
@@ -136,4 +184,12 @@ data class GameResult(
     val level: Level? = null,
     val passed: Boolean = false,
     val stars: Int = 0,
+    /** Set when this game took the player up a rank. */
+    val rankUp: RankUp? = null,
 )
+
+/** The game just finished moved the player from rank [from] to rank [to]. */
+data class RankUp(val from: Int, val to: Int)
+
+/** What the HUD shows: the [rank] and how full the bar to the next rank is, 0 to 1. */
+data class HudRank(val rank: Int, val progress: Float)
