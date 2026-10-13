@@ -433,4 +433,21 @@ class GridPhysicsTest {
         assertEquals(10f, ball.vy)
         assertEquals(1, ball.pierce)
     }
+
+    @Test
+    fun brickHitsAreReportedWithTheBallAtTheContactPoint() {
+        val board = board().apply { put(3, 2) }
+        val ball = Ball(x = 3.5f, y = 4f, vx = 0f, vy = -10f)
+        var seenAt: Pair<Float, Float>? = null
+        val listener = object : BallContacts {
+            override fun brickHit(column: Int, row: Int) {
+                seenAt = ball.x to ball.y
+            }
+            override fun wallBounce() = Unit
+        }
+        step(ball, board, seconds = 0.2f, listener = listener)
+        val (x, y) = seenAt ?: fail("no hit")
+        assertNear(3.5f, x)
+        assertNear(3f + r, y)
+    }
 }

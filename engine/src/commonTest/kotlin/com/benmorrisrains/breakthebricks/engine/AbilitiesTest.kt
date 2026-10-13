@@ -76,7 +76,7 @@ class AbilitiesTest {
         game = gameWith(listOf(BigBall), physics)
         playRound(game)
         playRound(game)
-        assertEquals(listOf(0 to 2f, 0 to 2f, 1 to 1f), sizes)
+        assertEquals(listOf(0 to BigBall.SIZE, 0 to BigBall.SIZE, 1 to 1f), sizes)
         assertTrue(game.balls.all { it.size == 1f }, "balls are normal size again once landed")
     }
 
@@ -94,14 +94,15 @@ class AbilitiesTest {
         assertEquals(r, game.launchX)
         playRound(game)
         // The big ball rests on the floor and is pushed off the wall; the normal ball isn't moved.
-        assertEquals(2 * r, launched[1].first)
-        assertEquals(game.config.rows - 2 * r, launched[1].second)
+        val bigR = game.config.ballRadius * BigBall.SIZE
+        assertEquals(bigR, launched[1].first)
+        assertEquals(game.config.rows - bigR, launched[1].second)
         assertEquals(r to game.config.rows - r, launched[2])
     }
 
     @Test
     fun theEngineHandsThePhysicsTheBigBallsRadius() {
-        // Straight up into a brick: the big ball turns back at its bottom face plus 2r, not r.
+        // Straight up into a brick: the big ball turns back at its bottom face plus its bigger radius.
         fun turnBackY(abilities: List<Ability>): Float {
             val game = gameWith(abilities, GridPhysics, Triple(3, 2, 50L))
             val firstBall = game.balls.first()
@@ -116,7 +117,60 @@ class AbilitiesTest {
         val normal = turnBackY(emptyList())
         val big = turnBackY(listOf(BigBall))
         assertTrue(normal - (3f + r) in 0f..step, "normal ball turned at $normal")
-        assertTrue(big - (3f + 2 * r) in 0f..step, "big ball turned at $big")
+        assertTrue(big - (3f + BigBall.SIZE * r) in 0f..step, "big ball turned at $big")
+    }
+
+    /** Records what an ability does to the board; the board itself is left alone. */
+    private class RecordingContext : AbilityContext {
+        override val board = Board(7, 9)
+        override val config = GameConfig()
+        val damaged = mutableListOf<Pair<Int, Int>>()
+        override fun damage(column: Int, row: Int, hits: Long) {
+            damaged += column to row
+        }
+        override fun breakBrick(column: Int, row: Int) = Unit
+        override fun splitFirstBall(extraBalls: Int, spreadRadians: Float) = Unit
+    }
+
+    private fun bigBallHit(x: Float, y: Float, column: Int, row: Int): List<Pair<Int, Int>> {
+        val context = RecordingContext()
+        BigBall.onFirstBallHit(context, Ball(x, y, size = BigBall.SIZE), column, row)
+        return context.damaged
+    }
+
+    @Test
+    fun aBigBallOverhangingTheNextBrickHitsItToo() {
+        val r = GameConfig().ballRadius * BigBall.SIZE
+        // Under brick (3, 2), touching its bottom face (y = 3 + r).
+        assertEquals(listOf(2 to 2), bigBallHit(3.2f, 3f + r, 3, 2))
+        assertEquals(listOf(4 to 2), bigBallHit(3.8f, 3f + r, 3, 2))
+        assertEquals(emptyList(), bigBallHit(3.5f, 3f + r, 3, 2))
+        // On top of brick (3, 2) and against its left and right sides.
+        assertEquals(listOf(4 to 2), bigBallHit(3.9f, 2f - r, 3, 2))
+        assertEquals(listOf(3 to 1), bigBallHit(3f - r, 2.1f, 3, 2))
+        assertEquals(listOf(3 to 3), bigBallHit(4f + r, 2.9f, 3, 2))
+        // Corner hits, and hits exactly on a seam (both bricks are already hit), add nothing.
+        assertEquals(emptyList(), bigBallHit(2.9f, 3.1f, 3, 2))
+        assertEquals(emptyList(), bigBallHit(3f, 3f + r, 3, 2))
+    }
+
+    @Test
+    fun aBigBallHitsTwoBricksAtOnceInAGame() {
+        // From the middle of the floor, slightly right of straight up, so the ball meets the
+        // bottom of brick (3, 2) near its right edge, hanging over brick (4, 2).
+        fun play(abilities: List<Ability>): BrickGame {
+            val game = gameWith(abilities, GridPhysics, Triple(3, 2, 50L), Triple(4, 2, 50L))
+            playRound(game, 1.505f)
+            return game
+        }
+        val big = play(listOf(BigBall))
+        assertEquals(2L, big.points)
+        // Both bricks took one hit; the drop moved them to row 3.
+        assertEquals(49L, big.board[3, 3]?.hits)
+        assertEquals(49L, big.board[4, 3]?.hits)
+        val normal = play(emptyList())
+        assertEquals(1L, normal.points)
+        assertEquals(50L, normal.board[4, 3]?.hits)
     }
 
     @Test
@@ -263,7 +317,7 @@ class AbilitiesTest {
         playRound(game)
         game.selectAbility(BigBall.id)
         playRound(game)
-        assertEquals(listOf(2f to 0, 1f to Drill.BRICKS, 2f to 0), launched)
+        assertEquals(listOf(BigBall.SIZE to 0, 1f to Drill.BRICKS, BigBall.SIZE to 0), launched)
     }
 
     @Test
@@ -275,6 +329,23 @@ class AbilitiesTest {
         assertEquals(3, mostBalls)
         assertEquals(listOf("splitter"), game.drainEvents().filterIsInstance<GameEvent.AbilityTriggered>().map { it.abilityId })
         assertTrue(game.board[3, 3] != null, "the grenade didn't go off (the brick has dropped a row)")
+    }
+
+    @Test
+    fun onlyThePickedAbilitySeesTheFirstBallsHits() {
+        val calls = mutableListOf<String>()
+        fun recorder(name: String) = object : Ability {
+            override val id = name
+            override val earnedAtRound = 99
+            override val wagerTargetRound = 104
+            override fun onFirstBallHit(context: AbilityContext, ball: Ball, column: Int, row: Int) {
+                calls += name
+            }
+        }
+        val game = gameWith(listOf(recorder("a"), recorder("b")), GridPhysics, Triple(3, 2, 50L))
+        game.selectAbility("b")
+        playRound(game, straightUp)
+        assertTrue(calls.isNotEmpty() && calls.all { it == "b" }, "calls $calls")
     }
 
     @Test

@@ -10,6 +10,7 @@ fun interface BallPhysics {
      * (y = 0) and the bricks on [board]. Reports every brick contact through [BallContacts.brickHit]
      * and every wall or ceiling bounce through [BallContacts.wallBounce]. The engine applies damage
      * inside [BallContacts.brickHit], so the brick may be gone from [board] when that call returns.
+     * During [BallContacts.brickHit], [Ball.x] and [Ball.y] are at the point of contact.
      *
      * The ball is a circle of [Ball.radius]. While [Ball.pierce] is above 0 it passes through the
      * bricks it hits instead of bouncing, taking 1 off [Ball.pierce] per brick, and is not hit

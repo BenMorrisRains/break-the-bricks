@@ -287,6 +287,10 @@ class BrickGame(
                 ability.onFirstHit(abilityContext, column, row)
             }
         }
+        val ball = currentBall
+        if (ball != null && ball === ballList.first()) {
+            shotAbility?.onFirstBallHit(abilityContext, ball, column, row)
+        }
     }
 
     /** Takes up to [hits] off a brick, scoring one point per hit taken. */

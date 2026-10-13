@@ -23,6 +23,12 @@ interface Ability {
 
     /** Called when the round's first ball makes its first brick hit. */
     fun onFirstHit(context: AbilityContext, column: Int, row: Int) {}
+
+    /**
+     * Called on every brick hit by the round's first ball, after that hit's damage and after
+     * [onFirstHit], with [ball] at the point of contact.
+     */
+    fun onFirstBallHit(context: AbilityContext, ball: Ball, column: Int, row: Int) {}
 }
 
 /** What an ability may touch. Points for bricks it breaks are awarded by the engine. */
