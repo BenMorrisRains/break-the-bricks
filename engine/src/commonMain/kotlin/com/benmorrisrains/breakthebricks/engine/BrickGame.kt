@@ -34,8 +34,8 @@ class BrickGame(
 ) : GameEngine {
     private val random = SeededRandom(seed)
 
-    /** Split directions draw from their own stream, so a split never changes the rows that come. */
-    private val splitRandom = SeededRandom(seed xor SPLIT_STREAM)
+    /** Abilities (split directions, grenade blasts) draw from their own stream, so they never change the rows that come. */
+    private val abilityRandom = SeededRandom(seed xor ABILITY_STREAM)
     private val events = mutableListOf<GameEvent>()
     private val ballList = mutableListOf<Ball>()
     private val abilityList = abilities.toMutableList()
@@ -113,6 +113,7 @@ class BrickGame(
             val brick = board[column, row] ?: return
             damageBrick(column, row, brick.hits)
         }
+        override fun randomInt(bound: Int): Int = abilityRandom.nextInt(bound)
         override fun splitFirstBall(extraBalls: Int, maxTurnRadians: Float) {
             require(extraBalls >= 0 && maxTurnRadians >= 0f)
             pendingSplit = extraBalls to maxTurnRadians
@@ -279,7 +280,7 @@ class BrickGame(
         val count = extraBalls + 1
         val slices = IntArray(count) { it }
         for (i in count - 1 downTo 1) {
-            val j = splitRandom.nextInt(i + 1)
+            val j = abilityRandom.nextInt(i + 1)
             val swap = slices[i]
             slices[i] = slices[j]
             slices[j] = swap
@@ -287,7 +288,7 @@ class BrickGame(
         val sliceWidth = 2 * maxTurn / count
         val newBalls = List(extraBalls) { Ball(ball.x, ball.y, state = BallState.Flying) }
         for ((index, target) in (listOf(ball) + newBalls).withIndex()) {
-            val turn = -maxTurn + sliceWidth * (slices[index] + splitRandom.nextFloat())
+            val turn = -maxTurn + sliceWidth * (slices[index] + abilityRandom.nextFloat())
             aimBall(target, heading + turn, speed)
         }
         ballList += newBalls
@@ -443,7 +444,7 @@ class BrickGame(
         /** Longest frame [advance] will catch up on; anything longer is treated as this much. */
         const val MAX_FRAME_SECONDS = 0.25f
 
-        /** Mixed into the seed for the split-direction stream. */
-        private const val SPLIT_STREAM = 0x5EED5B117L
+        /** Mixed into the seed for the abilities' random stream. */
+        private const val ABILITY_STREAM = 0x5EED5B117L
     }
 }

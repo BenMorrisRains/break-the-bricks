@@ -33,7 +33,7 @@ If code and the doc disagree, the doc wins; if the doc is silent, ask Ben in you
   - Big ball, round 5 (target 10): the first ball is three times the normal size, and a face hit that overhangs the next brick hits that brick too (Ben, 2026-10-13 playtest: big enough to hit two bricks at a time).
   - Splitter, round 10 (target 15): the first ball splits into 3 on its first hit, and all three fly off in seeded random directions up to about 75 degrees either side of its heading (Ben, 2026-10-13 playtest: "go kind of crazy in different directions").
   - Drill, round 20 (target 25): the first ball passes through up to 3 bricks, hitting each once, then bounces normally.
-  - Grenade ball, round 30 (target 35): the first ball explodes on its first hit and destroys only that brick, whatever its number (Ben, 2026-10-12 playtest). Ben moved it off round 5 because it was too powerful early.
+  - Grenade ball, round 30 (target 35): the first ball explodes on its first hit and destroys that brick plus 3 to 5 nearby bricks (a seeded pick, nearest first, up to 2 cells away), whatever their numbers (Ben, 2026-10-13 playtest; this replaces the 2026-10-12 hit-brick-only rule). Ben moved it off round 5 because it was too powerful early.
 - No real-money wagers. Players stake earned abilities. A wager is won by reaching the ability's target round.
 - Abilities are never sold for money.
 - In a game, the player can watch a rewarded ad for one power-up (Ben, 2026-10-13). It lasts that game only, starts on the next shot, and never enters the inventory, so it can't be staked. One per game (Claude's default).
