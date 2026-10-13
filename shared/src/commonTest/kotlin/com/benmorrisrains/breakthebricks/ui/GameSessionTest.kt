@@ -65,7 +65,7 @@ class GameSessionTest {
     private fun session(engines: MutableList<FakeEngine>) = GameSession(
         services,
         newSeed = { nextSeed++ },
-        newEngine = { seed, rank -> seeds += seed; ranks += rank; FakeEngine().also { engines += it } },
+        newEngine = { seed, rank, _ -> seeds += seed; ranks += rank; FakeEngine().also { engines += it } },
     )
 
     @Test
@@ -154,7 +154,7 @@ class GameSessionTest {
         val session = GameSession(
             services,
             newSeed = { nextSeed++ },
-            newEngine = { _, _ -> FakeEngine().also { engines += it } },
+            newEngine = { _, _, _ -> FakeEngine().also { engines += it } },
             newLevelEngine = { level -> levelsPlayed += level.number; FakeEngine().also { engines += it } },
         )
         store.putLong(GameSession.BEST_POINTS_KEY, 500)
@@ -186,7 +186,7 @@ class GameSessionTest {
     @Test
     fun aFailedLevelEarnsNoStars() {
         val engines = mutableListOf<FakeEngine>()
-        val session = GameSession(services, newEngine = { _, _ -> FakeEngine() }, newLevelEngine = { FakeEngine().also { engines += it } })
+        val session = GameSession(services, newEngine = { _, _, _ -> FakeEngine() }, newLevelEngine = { FakeEngine().also { engines += it } })
         session.newGame(FreeLevels[1])
         engines.last().apply { points = 999; phase = RoundPhase.GameOver }
         session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 3, points = 999)))
@@ -239,7 +239,7 @@ class GameSessionTest {
     @Test
     fun levelPointsCountTowardRankButLevelsKeepTheirOwnBoards() {
         val engines = mutableListOf<FakeEngine>()
-        val session = GameSession(services, newEngine = { _, _ -> FakeEngine() }, newLevelEngine = { FakeEngine().also { engines += it } })
+        val session = GameSession(services, newEngine = { _, _, _ -> FakeEngine() }, newLevelEngine = { FakeEngine().also { engines += it } })
         session.newGame(FreeLevels[1])
         engines.last().apply { points = 60; phase = RoundPhase.GameOver }
         session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 3, points = 60)))

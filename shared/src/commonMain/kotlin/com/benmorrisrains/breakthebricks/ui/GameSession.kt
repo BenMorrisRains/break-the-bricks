@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.benmorrisrains.breakthebricks.engine.Ability
 import com.benmorrisrains.breakthebricks.engine.BrickGame
 import com.benmorrisrains.breakthebricks.engine.Difficulty
 import com.benmorrisrains.breakthebricks.engine.GameEngine
@@ -12,6 +13,8 @@ import com.benmorrisrains.breakthebricks.engine.GridPhysics
 import com.benmorrisrains.breakthebricks.engine.Level
 import com.benmorrisrains.breakthebricks.engine.PlayerRank
 import com.benmorrisrains.breakthebricks.engine.RoundPhase
+import com.benmorrisrains.breakthebricks.engine.WagerGame
+import com.benmorrisrains.breakthebricks.engine.WagerOutcome
 import com.benmorrisrains.breakthebricks.platform.PlatformServices
 import com.benmorrisrains.breakthebricks.progress.RankStore
 import kotlin.random.Random
@@ -24,14 +27,18 @@ import kotlin.random.Random
  * Free-play games are built for the player's rank with [Difficulty.forRank]; levels keep their
  * own layouts. Every game's points, free play or level, count toward the next rank when it ends.
  *
+ * Free play carries the ability wager: after the first game, a game with anything in the
+ * [bank] stakes one copy, which is active from round 1. Levels are never staked (default not
+ * yet confirmed by Ben), but abilities earned in them are banked like any other.
+ *
  * The seed is the only thing picked at random, and it is picked here, outside the engine; the
  * engine itself stays deterministic for a given seed and set of aims.
  */
 class GameSession(
     private val services: PlatformServices,
     private val newSeed: () -> Long = { Random.nextLong() },
-    private val newEngine: (seed: Long, rank: Int) -> GameEngine = { seed, rank ->
-        BrickGame(Difficulty.forRank(rank), seed = seed, physics = GridPhysics)
+    private val newEngine: (seed: Long, rank: Int, abilities: List<Ability>) -> GameEngine = { seed, rank, abilities ->
+        BrickGame(Difficulty.forRank(rank), seed = seed, physics = GridPhysics, abilities = abilities)
     },
     private val newLevelEngine: (Level) -> GameEngine = { it.newGame(GridPhysics) },
 ) {
@@ -58,7 +65,14 @@ class GameSession(
 
     private var pointsCounted = false
 
-    var engine: GameEngine by mutableStateOf(newEngine(newSeed(), gameRank))
+    /** The saved ability inventory. */
+    val bank = AbilityBank(services.store)
+
+    var engine: GameEngine by mutableStateOf(newEngine(newSeed(), gameRank, emptyList()))
+        private set
+
+    /** The current game's wager; unstaked for levels, the first game and an empty inventory. */
+    var wager: WagerGame by mutableStateOf(WagerGame())
         private set
 
     /** The best of the current mode: free play, or the level being played. */
@@ -93,6 +107,10 @@ class GameSession(
                 passed = passed,
                 stars = level?.stars(passed, engine.round) ?: 0,
                 rankUp = rankUp,
+                stake = wager.stake,
+                wagerOutcome = wager.outcome,
+                banked = wager.banked.mapNotNull { id -> bank.abilities.firstOrNull { it.id == id } },
+                stakeCopiesLeft = wager.stake?.let { bank.inventory.count(it.id) } ?: 0,
             )
         }
 
@@ -100,6 +118,7 @@ class GameSession(
     fun onFrame(elapsedSeconds: Float, events: List<GameEvent>) {
         if (engine.phase.isFinished) gameOverSeconds += elapsedSeconds
         for (event in events) {
+            bank.save(wager.onEvent(event, bank.inventory))
             when (event) {
                 is GameEvent.GameOver -> finish(passed = false, round = event.round, points = event.points)
                 is GameEvent.LevelCompleted -> finish(passed = true, round = event.round, points = event.points)
@@ -132,18 +151,29 @@ class GameSession(
 
     /**
      * Drops the current game, finished or not, and starts a new one: [level] on its fixed seed,
-     * or free play on a fresh seed when it is null.
+     * or free play on a fresh seed when it is null. Free play must name a [stake] when
+     * [AbilityBank.stakeRequired]; the staked copy leaves the inventory before play begins.
      */
-    fun newGame(level: Level? = null) {
+    fun newGame(level: Level? = null, stake: Ability? = null) {
+        quit()
+        val wagered = if (level == null) stake else null
+        require(level != null || wagered != null || !bank.stakeRequired) { "This game needs a stake" }
+        val wager = WagerGame(wagered)
+        bank.save(wager.start(bank.inventory))
+        if (level == null) bank.markFirstGamePlayed()
+        this.wager = wager
         this.level = level
         gameRank = playerRank.rank
         rankUp = null
         pointsCounted = false
-        engine = if (level == null) newEngine(newSeed(), gameRank) else newLevelEngine(level)
+        engine = if (level == null) newEngine(newSeed(), gameRank, listOfNotNull(wagered)) else newLevelEngine(level)
         bestPoints = services.store.getLong(bestPointsKey(level), 0L)
         gameOverSeconds = 0f
         bestBeforeGame = bestPoints
     }
+
+    /** Leaves the current game. A wager still open is lost; its copy was taken at the start. */
+    fun quit() = wager.abandon()
 
     private fun finish(passed: Boolean, round: Int, points: Long) {
         val level = level
@@ -178,7 +208,12 @@ class GameSession(
     }
 }
 
-/** The end of one game, for the results screen. In a level, [passed] and [stars] say how it went. */
+/**
+ * The end of one game, for the results screen. In a level, [passed] and [stars] say how it went.
+ * In a wagered game, [stake] is the ability on the line, [wagerOutcome] whether it was kept, and
+ * [stakeCopiesLeft] how many copies of it the player holds now. [banked] lists abilities earned
+ * into the inventory during the game.
+ */
 data class GameResult(
     val round: Int,
     val points: Long,
@@ -189,6 +224,10 @@ data class GameResult(
     val stars: Int = 0,
     /** Set when this game took the player up a rank. */
     val rankUp: RankUp? = null,
+    val stake: Ability? = null,
+    val wagerOutcome: WagerOutcome = WagerOutcome.Unstaked,
+    val banked: List<Ability> = emptyList(),
+    val stakeCopiesLeft: Int = 0,
 )
 
 /** The game just finished moved the player from rank [from] to rank [to]. */
