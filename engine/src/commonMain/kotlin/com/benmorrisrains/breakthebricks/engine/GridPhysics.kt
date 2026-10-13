@@ -36,6 +36,9 @@ object GridPhysics : BallPhysics {
     /** How far (cells) rounding may leave a ball past a surface it is touching. */
     private const val SLOP = 1e-5
 
+    /** Contacts a sweep has room for before it grows; a moment rarely has more than three. */
+    private const val INITIAL_CAPACITY = 8
+
     /** Centre height of a normal-sized ball resting on the floor. */
     fun restingY(config: GameConfig): Float = config.rows - config.ballRadius
 
@@ -55,17 +58,9 @@ object GridPhysics : BallPhysics {
      */
     override fun step(ball: Ball, board: Board, config: GameConfig, dt: Float, contacts: BallContacts): Boolean {
         require(dt >= 0f) { "dt must not be negative" }
-        val sweep = Sweep(
-            ball = ball,
-            board = board,
-            radius = ball.radius(config).toDouble(),
-            x = ball.x.toDouble(),
-            y = ball.y.toDouble(),
-            vx = ball.vx.toDouble(),
-            vy = ball.vy.toDouble(),
-            pierce = ball.pierce,
-            inside = ball.insideBricks,
-        )
+        // Each ball keeps its own sweep, so a step allocates nothing and two games never share one.
+        val sweep = ball.gridSweep ?: Sweep().also { ball.gridSweep = it }
+        sweep.begin(ball, board, ball.radius(config).toDouble())
         val landed = sweep.run(dt.toDouble(), contacts)
         ball.x = sweep.x.toFloat()
         ball.y = sweep.y.toFloat()
@@ -75,28 +70,63 @@ object GridPhysics : BallPhysics {
         return landed
     }
 
-    private enum class Surface { Wall, Floor, Brick }
+    private const val WALL = 0
+    private const val FLOOR = 1
+    private const val BRICK = 2
 
     /**
-     * One possible contact: [time] from now, the axis normal (nx, ny) pointing out of the surface,
-     * and for a brick its [cell] index (row * columns + column, so cell order is row then column).
+     * One ball's step through the field. It is reused from step to step, and keeps the contacts
+     * it finds in flat arrays rather than objects.
      */
-    private class Contact(val time: Double, val nx: Int, val ny: Int, val surface: Surface, val cell: Int = -1)
+    internal class Sweep {
+        private lateinit var ball: Ball
+        private lateinit var board: Board
+        private var radius = 0.0
+        var x = 0.0
+            private set
+        var y = 0.0
+            private set
+        var vx = 0.0
+            private set
+        var vy = 0.0
+            private set
+        var pierce = 0
+            private set
+        private var width = 0.0
+        private var floorY = 0.0
 
-    private class Sweep(
-        val ball: Ball,
-        val board: Board,
-        val radius: Double,
-        var x: Double,
-        var y: Double,
-        var vx: Double,
-        var vy: Double,
-        var pierce: Int,
+        /**
+         * The contacts at the earliest moment found so far: [count] of them, each with its time,
+         * axis normal (nx, ny) pointing out of the surface, surface ([WALL], [FLOOR] or [BRICK]) and,
+         * for a brick, its cell index (row * columns + column, so cell order is row then column).
+         */
+        private var count = 0
+        private var times = DoubleArray(INITIAL_CAPACITY)
+        private var normalsX = IntArray(INITIAL_CAPACITY)
+        private var normalsY = IntArray(INITIAL_CAPACITY)
+        private var surfaces = IntArray(INITIAL_CAPACITY)
+        private var cells = IntArray(INITIAL_CAPACITY)
+        private var first = 0.0
+        private var window = 0.0
+
+        /** Bricks hit at one moment, distinct and in cell order. */
+        private var bricksHit = IntArray(INITIAL_CAPACITY)
+
         /** Cells of bricks the ball has passed through; see-through until it is clear of them all. */
-        val inside: MutableSet<Int>,
-    ) {
-        private val width = board.columns.toDouble()
-        private val floorY = board.rows - radius
+        private val inside: MutableSet<Int> get() = ball.insideBricks
+
+        fun begin(ball: Ball, board: Board, radius: Double) {
+            this.ball = ball
+            this.board = board
+            this.radius = radius
+            x = ball.x.toDouble()
+            y = ball.y.toDouble()
+            vx = ball.vx.toDouble()
+            vy = ball.vy.toDouble()
+            pierce = ball.pierce
+            width = board.columns.toDouble()
+            floorY = board.rows - radius
+        }
 
         /** Returns true when the ball lands. */
         fun run(seconds: Double, contacts: BallContacts): Boolean {
@@ -105,68 +135,135 @@ object GridPhysics : BallPhysics {
             while (remaining > 0.0 && (vx != 0.0 || vy != 0.0)) {
                 if (contactsLeft-- == 0) return false
                 leaveBricks()
-                val found = ArrayList<Contact>()
-                findBoundaryContacts(remaining, found)
-                findBrickContacts(remaining, found)
-                if (found.isEmpty()) {
+                count = 0
+                window = SAME_MOMENT / sqrt(vx * vx + vy * vy)
+                findBoundaryContacts(remaining)
+                findBrickContacts(remaining)
+                if (count == 0) {
                     x += vx * remaining
                     y += vy * remaining
                     return false
                 }
 
-                val first = found.minOf { it.time }
-                val window = SAME_MOMENT / sqrt(vx * vx + vy * vy)
-                val now = found.filter { it.time <= first + window }
                 x += vx * first
                 y += vy * first
                 remaining -= first
 
-                val bricksHit = now.filter { it.surface == Surface.Brick }.map { it.cell }.distinct().sorted()
-                if (bricksHit.isNotEmpty()) {
+                val hitCount = collectBricksHit()
+                if (hitCount > 0) {
                     // Hits are reported with the ball at the contact point, before it reflects.
                     ball.x = x.toFloat()
                     ball.y = y.toFloat()
                 }
-                bricksHit.forEach { contacts.brickHit(it % board.columns, it / board.columns) }
-                if (now.any { it.surface == Surface.Wall }) contacts.wallBounce()
-                val passThrough = bricksHit.isNotEmpty() && pierce >= bricksHit.size
+                for (i in 0 until hitCount) contacts.brickHit(bricksHit[i] % board.columns, bricksHit[i] / board.columns)
+                if (anyOn(WALL)) contacts.wallBounce()
+                val passThrough = hitCount > 0 && pierce >= hitCount
                 if (passThrough) {
-                    pierce -= bricksHit.size
-                    inside += bricksHit
+                    pierce -= hitCount
+                    for (i in 0 until hitCount) inside += bricksHit[i]
                 }
 
-                if (now.any { it.surface == Surface.Floor }) {
+                if (anyOn(FLOOR)) {
                     x = x.coerceIn(radius, width - radius)
                     y = floorY
                     vx = 0.0
                     vy = 0.0
                     return true
                 }
-                val bouncesOff = if (passThrough) now.filter { it.surface != Surface.Brick } else now
-                val flipX = bouncesOff.any { it.nx * vx < 0.0 }
-                val flipY = bouncesOff.any { it.ny * vy < 0.0 }
+                // A ball passing through bricks only bounces off the walls it meets at that moment.
+                var flipX = false
+                var flipY = false
+                for (i in 0 until count) {
+                    if (passThrough && surfaces[i] == BRICK) continue
+                    if (normalsX[i] * vx < 0.0) flipX = true
+                    if (normalsY[i] * vy < 0.0) flipY = true
+                }
                 if (flipX) vx = -vx
                 if (flipY) vy = -vy
             }
             return false
         }
 
-        /** Left and right walls, ceiling and floor are planes the ball centre stays `radius` away from. */
-        private fun findBoundaryContacts(remaining: Double, found: MutableList<Contact>) {
-            if (vx < 0.0) addPlane((radius - x) / vx, 1, 0, Surface.Wall, remaining, found)
-            if (vx > 0.0) addPlane((width - radius - x) / vx, -1, 0, Surface.Wall, remaining, found)
-            if (vy < 0.0) addPlane((radius - y) / vy, 0, 1, Surface.Wall, remaining, found)
-            if (vy > 0.0) addPlane((floorY - y) / vy, 0, -1, Surface.Floor, remaining, found)
+        /**
+         * Records a contact [time] from now, keeping only those within [SAME_MOMENT] of the
+         * earliest. A contact later than that window can never come back into it, since the
+         * earliest time only moves earlier.
+         */
+        private fun add(time: Double, nx: Int, ny: Int, surface: Int, cell: Int) {
+            if (count > 0 && time > first + window) return
+            if (count == 0 || time < first) {
+                first = time
+                // Drop the contacts the new earliest one leaves behind, keeping the rest in order.
+                var kept = 0
+                for (i in 0 until count) {
+                    if (times[i] <= first + window) {
+                        times[kept] = times[i]
+                        normalsX[kept] = normalsX[i]
+                        normalsY[kept] = normalsY[i]
+                        surfaces[kept] = surfaces[i]
+                        cells[kept] = cells[i]
+                        kept++
+                    }
+                }
+                count = kept
+            }
+            if (count == times.size) grow()
+            times[count] = time
+            normalsX[count] = nx
+            normalsY[count] = ny
+            surfaces[count] = surface
+            cells[count] = cell
+            count++
         }
 
-        private fun addPlane(time: Double, nx: Int, ny: Int, surface: Surface, remaining: Double, found: MutableList<Contact>) {
+        private fun grow() {
+            val size = times.size * 2
+            times = times.copyOf(size)
+            normalsX = normalsX.copyOf(size)
+            normalsY = normalsY.copyOf(size)
+            surfaces = surfaces.copyOf(size)
+            cells = cells.copyOf(size)
+        }
+
+        private fun anyOn(surface: Int): Boolean {
+            for (i in 0 until count) if (surfaces[i] == surface) return true
+            return false
+        }
+
+        /** Fills [bricksHit] with the distinct brick cells of this moment, in cell order. */
+        private fun collectBricksHit(): Int {
+            if (bricksHit.size < count) bricksHit = IntArray(times.size)
+            var hits = 0
+            for (i in 0 until count) {
+                if (surfaces[i] != BRICK) continue
+                val cell = cells[i]
+                // Insertion sort: there are only ever a few.
+                var at = hits
+                while (at > 0 && bricksHit[at - 1] > cell) at--
+                if (at > 0 && bricksHit[at - 1] == cell) continue
+                for (j in hits downTo at + 1) bricksHit[j] = bricksHit[j - 1]
+                bricksHit[at] = cell
+                hits++
+            }
+            return hits
+        }
+
+        /** Left and right walls, ceiling and floor are planes the ball centre stays `radius` away from. */
+        private fun findBoundaryContacts(remaining: Double) {
+            if (vx < 0.0) addPlane((radius - x) / vx, 1, 0, WALL, remaining)
+            if (vx > 0.0) addPlane((width - radius - x) / vx, -1, 0, WALL, remaining)
+            if (vy < 0.0) addPlane((radius - y) / vy, 0, 1, WALL, remaining)
+            if (vy > 0.0) addPlane((floorY - y) / vy, 0, -1, FLOOR, remaining)
+        }
+
+        private fun addPlane(time: Double, nx: Int, ny: Int, surface: Int, remaining: Double) {
             // A ball already past a boundary is caught at once rather than escaping the field.
             val t = max(0.0, time)
-            if (t <= remaining) found += Contact(t, nx, ny, surface)
+            if (t <= remaining) add(t, nx, ny, surface, -1)
         }
 
         /** Tests only the cells the ball can reach during [remaining]. */
-        private fun findBrickContacts(remaining: Double, found: MutableList<Contact>) {
+        private fun findBrickContacts(remaining: Double) {
             val endX = x + vx * remaining
             val endY = y + vy * remaining
             val reach = radius + SLOP
@@ -178,7 +275,7 @@ object GridPhysics : BallPhysics {
                 for (column in firstColumn..lastColumn) {
                     val brick = board[column, row] ?: continue
                     if (brick.hits > 0 && row * board.columns + column !in inside) {
-                        sweepBrick(row * board.columns + column, column.toDouble(), row.toDouble(), remaining, found)
+                        sweepBrick(row * board.columns + column, column.toDouble(), row.toDouble(), remaining)
                     }
                 }
             }
@@ -198,21 +295,21 @@ object GridPhysics : BallPhysics {
             if (!stillIn) inside.clear()
         }
 
-        private fun sweepBrick(cell: Int, left: Double, top: Double, remaining: Double, found: MutableList<Contact>) {
+        private fun sweepBrick(cell: Int, left: Double, top: Double, remaining: Double) {
             val right = left + 1.0
             val bottom = top + 1.0
 
             // Faces, grown by the radius. The ball must start on the outside of the face.
-            if (vy < 0.0) addFace(bottom + radius, y, vy, x, vx, left, right, 0, 1, cell, remaining, found)
-            if (vy > 0.0) addFace(top - radius, y, vy, x, vx, left, right, 0, -1, cell, remaining, found)
-            if (vx > 0.0) addFace(left - radius, x, vx, y, vy, top, bottom, -1, 0, cell, remaining, found)
-            if (vx < 0.0) addFace(right + radius, x, vx, y, vy, top, bottom, 1, 0, cell, remaining, found)
+            if (vy < 0.0) addFace(bottom + radius, y, vy, x, vx, left, right, 0, 1, cell, remaining)
+            if (vy > 0.0) addFace(top - radius, y, vy, x, vx, left, right, 0, -1, cell, remaining)
+            if (vx > 0.0) addFace(left - radius, x, vx, y, vy, top, bottom, -1, 0, cell, remaining)
+            if (vx < 0.0) addFace(right + radius, x, vx, y, vy, top, bottom, 1, 0, cell, remaining)
 
             // Rounded corners: the ball centre meets a circle of the ball's radius around each corner.
-            addCorner(left, top, -1, -1, cell, remaining, found)
-            addCorner(right, top, 1, -1, cell, remaining, found)
-            addCorner(left, bottom, -1, 1, cell, remaining, found)
-            addCorner(right, bottom, 1, 1, cell, remaining, found)
+            addCorner(left, top, -1, -1, cell, remaining)
+            addCorner(right, top, 1, -1, cell, remaining)
+            addCorner(left, bottom, -1, 1, cell, remaining)
+            addCorner(right, bottom, 1, 1, cell, remaining)
         }
 
         /**
@@ -221,14 +318,14 @@ object GridPhysics : BallPhysics {
          */
         private fun addFace(
             face: Double, along: Double, speed: Double, across: Double, drift: Double,
-            from: Double, to: Double, nx: Int, ny: Int, cell: Int, remaining: Double, found: MutableList<Contact>,
+            from: Double, to: Double, nx: Int, ny: Int, cell: Int, remaining: Double,
         ) {
             val outsideBy = if (speed < 0.0) along - face else face - along
             if (outsideBy < -SLOP) return
             val t = max(0.0, (face - along) / speed)
             if (t > remaining) return
             val hitAt = across + drift * t
-            if (hitAt in from..to) found += Contact(t, nx, ny, Surface.Brick, cell)
+            if (hitAt in from..to) add(t, nx, ny, BRICK, cell)
         }
 
         /**
@@ -236,7 +333,7 @@ object GridPhysics : BallPhysics {
          * the faces own the rest.
          */
         private fun addCorner(
-            cornerX: Double, cornerY: Double, sx: Int, sy: Int, cell: Int, remaining: Double, found: MutableList<Contact>,
+            cornerX: Double, cornerY: Double, sx: Int, sy: Int, cell: Int, remaining: Double,
         ) {
             val dx = x - cornerX
             val dy = y - cornerY
@@ -256,9 +353,9 @@ object GridPhysics : BallPhysics {
             val pushX = vx * px
             val pushY = vy * py
             if (pushX <= pushY) {
-                found += Contact(t, sx, 0, Surface.Brick, cell)
+                add(t, sx, 0, BRICK, cell)
             } else {
-                found += Contact(t, 0, sy, Surface.Brick, cell)
+                add(t, 0, sy, BRICK, cell)
             }
         }
     }

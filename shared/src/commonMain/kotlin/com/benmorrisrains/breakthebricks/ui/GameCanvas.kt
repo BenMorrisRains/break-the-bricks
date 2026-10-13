@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.changedToUp
@@ -35,7 +36,8 @@ import com.benmorrisrains.breakthebricks.engine.GameConfig
 import com.benmorrisrains.breakthebricks.engine.GameEngine
 import com.benmorrisrains.breakthebricks.engine.Level
 import com.benmorrisrains.breakthebricks.engine.RoundPhase
-import kotlin.math.hypot
+import kotlin.math.PI
+import kotlin.math.atan2
 
 /**
  * The play field: neon bricks with their numbers, balls, the floor, the ball counter and the
@@ -60,6 +62,7 @@ fun GameCanvas(
     val gesture = remember(engine) { AimGesture(engine) }
     val textMeasurer = rememberTextMeasurer()
     val labels = remember(textMeasurer) { LabelCache(textMeasurer) }
+    val trails = remember { TrailBrushes() }
     val latestOnFire by rememberUpdatedState(onFire)
     val latestOnGameOverTap by rememberUpdatedState(onGameOverTap)
     val input = Modifier.pointerInput(engine) {
@@ -70,6 +73,7 @@ fun GameCanvas(
         val layout = FieldLayout(engine.config, size.width, size.height)
         if (layout.isEmpty) return@Canvas
         labels.resize(layout.cell)
+        trails.resize(layout.cell)
 
         drawRect(NeonPalette.Background)
         val shakeX = (effects?.shakeX() ?: 0f) * layout.cell
@@ -80,7 +84,7 @@ fun GameCanvas(
             effects?.let { drawBrickGhosts(it, layout) }
             drawFloor(layout)
             if (gesture.isAiming && engine.phase == RoundPhase.Aiming) drawAimLine(engine, layout)
-            drawBalls(engine, layout, abilityCue.isArmed(engine), effects?.time)
+            drawBalls(engine, layout, trails, abilityCue.isArmed(engine), effects?.time)
             drawBallCounter(engine, layout, labels)
             effects?.let { drawSparks(it, layout) }
         }
@@ -149,7 +153,9 @@ private fun DrawScope.drawBricks(
     val wideGlow = Stroke(width = cell * 0.24f)
     val nearGlow = Stroke(width = cell * 0.13f)
     val outline = Stroke(width = cell * 0.05f)
-    for (brick in engine.board.bricks()) {
+    val board = engine.board
+    for (row in 0 until board.rows) for (column in 0 until board.columns) {
+        val brick = board[column, row] ?: continue
         val base = NeonPalette.brickColor(brick.hits, roundValue)
         val flash = flashes.intensity(brick.column, brick.row)
         val color = if (flash > 0f) lerp(base, NeonPalette.Ink, flash * 0.7f) else base
@@ -195,14 +201,21 @@ private fun DrawScope.drawAimLine(engine: GameEngine, layout: FieldLayout) {
  * color (see [splitBallTint]). While [grenadeArmed], the round's first ball is drawn as a hand
  * grenade, its fuse sparking by [effectsTime] once it flies.
  */
-private fun DrawScope.drawBalls(engine: GameEngine, layout: FieldLayout, grenadeArmed: Boolean, effectsTime: Float?) {
+private fun DrawScope.drawBalls(
+    engine: GameEngine,
+    layout: FieldLayout,
+    trails: TrailBrushes,
+    grenadeArmed: Boolean,
+    effectsTime: Float?,
+) {
     val config = engine.config
     val grenade = engine.balls.firstOrNull()?.takeIf { grenadeArmed }
-    for ((index, ball) in engine.balls.withIndex()) {
+    for (index in engine.balls.indices) {
+        val ball = engine.balls[index]
         val isGrenade = ball === grenade
         val tint = splitBallTint(index, engine.ballCount, engine.balls.size)?.let(NeonPalette::tint)
         when (ball.state) {
-            BallState.Flying -> drawBall(ball.x, ball.y, layout, config, trailOf = ball, isGrenade = isGrenade, sparkTime = effectsTime, size = ball.size, drilling = ball.pierce > 0, tint = tint)
+            BallState.Flying -> drawBall(ball.x, ball.y, layout, config, trailOf = ball, trails = trails, isGrenade = isGrenade, sparkTime = effectsTime, size = ball.size, drilling = ball.pierce > 0, tint = tint)
             BallState.Landed -> drawBall(ball.x, ball.y, layout, config, size = ball.size, tint = tint)
             BallState.Waiting -> Unit
         }
@@ -220,6 +233,7 @@ private fun DrawScope.drawBall(
     layout: FieldLayout,
     config: GameConfig,
     trailOf: Ball? = null,
+    trails: TrailBrushes? = null,
     isGrenade: Boolean = false,
     sparkTime: Float? = null,
     size: Float = 1f,
@@ -229,16 +243,15 @@ private fun DrawScope.drawBall(
     val r = config.ballRadius * size * layout.cell
     val center = Offset(layout.toScreenX(x), layout.toScreenY(y))
     val color = if (isGrenade) NeonPalette.Orange else tint ?: NeonPalette.Ink
-    if (trailOf != null) {
-        val speed = hypot(trailOf.vx, trailOf.vy)
-        if (speed > 0f) {
-            val tail = center - Offset(trailOf.vx / speed, trailOf.vy / speed) * (r * 3.5f)
-            val brush = Brush.linearGradient(
-                listOf(color.copy(alpha = 0f), color.copy(alpha = 0.35f)),
-                start = tail,
-                end = center,
-            )
-            drawLine(brush, tail, center, strokeWidth = r * 1.4f, cap = StrokeCap.Round)
+    if (trailOf != null && trails != null && (trailOf.vx != 0f || trailOf.vy != 0f)) {
+        // The trail runs along x from the tail to the ball, turned to point back along the flight.
+        val length = r * 3.5f
+        val degrees = atan2(trailOf.vy, trailOf.vx) * (180f / PI.toFloat())
+        withTransform({
+            translate(center.x, center.y)
+            rotate(degrees, pivot = Offset.Zero)
+        }) {
+            drawLine(trails.get(color, length), Offset(-length, 0f), Offset.Zero, strokeWidth = r * 1.4f, cap = StrokeCap.Round)
         }
     }
     if (isGrenade) {
@@ -282,6 +295,41 @@ private fun DrawScope.drawFinishCard(card: FinishCard, layout: FieldLayout, labe
     }
     val hint = labels.get(this, card.hint, layout.cell * 0.22f)
     drawText(hint, NeonPalette.Cyan, Offset(center.x - hint.size.width / 2f, top))
+}
+
+/**
+ * Ball trail gradients, one per color and length, made once and reused. A gradient made per ball
+ * per frame would build a new shader each time, which adds up with a hundred balls in the air.
+ * Each runs along x from transparent at -length to the ball at 0; the caller turns it into place.
+ */
+private class TrailBrushes {
+    private class Entry(val color: Color, val length: Float, val brush: Brush)
+
+    private val entries = ArrayList<Entry>()
+    private var cell = 0f
+
+    fun resize(cell: Float) {
+        if (cell != this.cell || entries.size > MAX_ENTRIES) entries.clear()
+        this.cell = cell
+    }
+
+    fun get(color: Color, length: Float): Brush {
+        for (i in entries.indices) {
+            val entry = entries[i]
+            if (entry.color == color && entry.length == length) return entry.brush
+        }
+        val brush = Brush.linearGradient(
+            listOf(color.copy(alpha = 0f), color.copy(alpha = 0.35f)),
+            start = Offset(-length, 0f),
+            end = Offset.Zero,
+        )
+        entries += Entry(color, length, brush)
+        return brush
+    }
+
+    private companion object {
+        const val MAX_ENTRIES = 32
+    }
 }
 
 /**

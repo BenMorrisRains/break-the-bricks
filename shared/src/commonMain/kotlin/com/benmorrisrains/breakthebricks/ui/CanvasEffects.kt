@@ -116,6 +116,8 @@ class CanvasEffects(seed: Long = 0x7E11L) {
      */
     fun update(elapsedSeconds: Float, events: List<GameEvent>, roundValue: Long) {
         step(elapsedSeconds)
+        // Most frames bring no events; skip building the blast set for them.
+        if (events.isEmpty()) return
         // A grenade's own blast covers its brick, so that brick gets no plain break burst.
         val blasted = events.filterIsInstance<GameEvent.AbilityTriggered>()
             .filter { it.abilityId == GrenadeBall.id }
@@ -148,24 +150,25 @@ class CanvasEffects(seed: Long = 0x7E11L) {
         flash = (flash - dt / FLASH_SECONDS).coerceAtLeast(0f)
         shakeLeft = (shakeLeft - dt).coerceAtLeast(0f)
 
-        val iterator = particles.iterator()
-        while (iterator.hasNext()) {
-            val p = iterator.next()
+        // Compacts in place, keeping draw order: removing one by one would shift the list each time.
+        var kept = 0
+        for (i in particles.indices) {
+            val p = particles[i]
             p.age += dt
-            if (p.age >= p.life) {
-                iterator.remove()
-                continue
-            }
+            if (p.age >= p.life) continue
             p.vy += GRAVITY * dt
             val drag = 1f - DRAG * dt
             p.vx *= drag
             p.vy *= drag
             p.x += p.vx * dt
             p.y += p.vy * dt
+            particles[kept++] = p
         }
+        while (particles.size > kept) particles.removeAt(particles.lastIndex)
         shockwaves.forEach { it.age += dt }
         shockwaves.removeAll { it.age >= it.life }
 
+        if (ghosts.isEmpty()) return
         for (ghost in ghosts) ghost.age += dt
         val done = ghosts.filter { it.age >= it.life }
         if (done.isNotEmpty()) {

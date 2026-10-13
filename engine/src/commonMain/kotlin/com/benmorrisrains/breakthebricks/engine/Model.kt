@@ -44,6 +44,9 @@ class Ball(
     /** Cells of bricks this ball is passing through; the physics keeps it, the engine clears it. */
     internal val insideBricks = mutableSetOf<Int>()
 
+    /** [GridPhysics]' working space for this ball, reused every step so stepping allocates nothing. */
+    internal var gridSweep: GridPhysics.Sweep? = null
+
     /** This ball's radius in cells. */
     fun radius(config: GameConfig): Float = config.ballRadius * size
 }
