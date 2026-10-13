@@ -41,7 +41,8 @@ fun HomeScreen(
 
 /**
  * Over the paused game. It covers the whole field and swallows touches, so nothing behind it
- * can aim or fire.
+ * can aim or fire. With [boostOffers], it also offers one power-up for this game for watching
+ * an ad; [adMissed] says the last ad didn't pay out.
  */
 @Composable
 fun PauseMenu(
@@ -51,6 +52,9 @@ fun PauseMenu(
     onHome: () -> Unit,
     modifier: Modifier = Modifier,
     warning: String? = null,
+    boostOffers: List<Ability> = emptyList(),
+    onBoost: (Ability) -> Unit = {},
+    adMissed: Boolean = false,
 ) {
     val blocker = remember { MutableInteractionSource() }
     MenuColumn(
@@ -58,12 +62,24 @@ fun PauseMenu(
             .background(NeonPalette.Background.copy(alpha = 0.88f))
             .clickable(interactionSource = blocker, indication = null, onClick = {}),
     ) {
-        MenuTitle("PAUSED")
-        if (warning != null) MenuLabel(warning, NeonPalette.Orange)
-        NeonButton("RESUME", onResume, color = NeonPalette.Lime)
-        NeonButton("RESTART", onRestart, color = NeonPalette.Orange)
-        NeonButton("SETTINGS", onSettings, color = NeonPalette.Purple)
-        NeonButton("HOME", onHome, color = NeonPalette.Cyan)
+        // The ad offers get their own page so the menu still fits a short phone.
+        var choosingBoost by remember { mutableStateOf(false) }
+        if (choosingBoost && boostOffers.isNotEmpty()) {
+            MenuTitle("POWER-UP", NeonPalette.Yellow)
+            MenuLabel(BOOST_HEADING, NeonPalette.Ink)
+            MenuLabel(BOOST_TERMS, NeonPalette.Cyan, 12.sp)
+            if (adMissed) MenuLabel(BOOST_AD_MISSED, NeonPalette.Orange, 12.sp)
+            for (ability in boostOffers) NeonButton(boostButtonText(ability), { onBoost(ability) }, color = NeonPalette.Yellow)
+            NeonButton("BACK", { choosingBoost = false }, color = NeonPalette.Cyan)
+        } else {
+            MenuTitle("PAUSED")
+            if (warning != null) MenuLabel(warning, NeonPalette.Orange)
+            NeonButton("RESUME", onResume, color = NeonPalette.Lime)
+            if (boostOffers.isNotEmpty()) NeonButton(BOOST_MENU_BUTTON, { choosingBoost = true }, color = NeonPalette.Yellow)
+            NeonButton("RESTART", onRestart, color = NeonPalette.Orange)
+            NeonButton("SETTINGS", onSettings, color = NeonPalette.Purple)
+            NeonButton("HOME", onHome, color = NeonPalette.Cyan)
+        }
     }
 }
 

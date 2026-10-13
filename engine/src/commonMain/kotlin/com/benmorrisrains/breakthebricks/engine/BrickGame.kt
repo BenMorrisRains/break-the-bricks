@@ -58,6 +58,14 @@ class BrickGame(
     val firedAngles: List<Float> get() = fired
     private val fired = mutableListOf<Float>()
 
+    /**
+     * One-game boosts, each as the 0-based index into [firedAngles] of the shot it first acted
+     * on and the ability's id. Replaying the same angles and boosts on the same seed reproduces the game.
+     */
+    val boosts: List<Pair<Int, String>> get() = boostLog
+    private val boostLog = mutableListOf<Pair<Int, String>>()
+    private val pendingBoosts = mutableListOf<Ability>()
+
     /** Fixed steps run since the game began. */
     var steps = 0L
         private set
@@ -123,8 +131,21 @@ class BrickGame(
         aimAngle = clampAim(angleRadians)
     }
 
+    override fun boost(ability: Ability): Boolean {
+        if (phase.isFinished) return false
+        if (abilityList.any { it.id == ability.id } || pendingBoosts.any { it.id == ability.id }) return false
+        pendingBoosts += ability
+        return true
+    }
+
     override fun fire() {
         if (phase != RoundPhase.Aiming) return
+        // A boost waits for a shot so it always starts on a first ball that hasn't moved yet.
+        for (ability in pendingBoosts) {
+            boostLog += fired.size to ability.id
+            if (abilityList.none { it.id == ability.id }) abilityList += ability
+        }
+        pendingBoosts.clear()
         fired += aimAngle
         val vx = cos(aimAngle) * config.ballSpeed
         val vy = -sin(aimAngle) * config.ballSpeed
