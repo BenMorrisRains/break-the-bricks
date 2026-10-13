@@ -37,3 +37,12 @@ class DropPhysics(private val landAt: (Int) -> Float) : BallPhysics {
         return true
     }
 }
+
+/** Physics where every ball takes one hit off the first brick left on the board, then lands. */
+class ClearPhysics : BallPhysics {
+    override fun step(ball: Ball, board: Board, config: GameConfig, dt: Float, contacts: BallContacts): Boolean {
+        board.bricks().firstOrNull()?.let { contacts.brickHit(it.column, it.row) }
+        ball.x = config.columns / 2f
+        return true
+    }
+}

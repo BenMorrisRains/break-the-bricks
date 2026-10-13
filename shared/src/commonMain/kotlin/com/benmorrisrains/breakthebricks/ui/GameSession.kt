@@ -91,7 +91,7 @@ class GameSession(
                 isNewBest = engine.points > bestBeforeGame,
                 level = level,
                 passed = passed,
-                stars = level?.stars(passed, engine.points) ?: 0,
+                stars = level?.stars(passed, engine.round) ?: 0,
                 rankUp = rankUp,
             )
         }
@@ -101,8 +101,8 @@ class GameSession(
         if (engine.phase.isFinished) gameOverSeconds += elapsedSeconds
         for (event in events) {
             when (event) {
-                is GameEvent.GameOver -> finish(passed = false, points = event.points)
-                is GameEvent.LevelCompleted -> finish(passed = true, points = event.points)
+                is GameEvent.GameOver -> finish(passed = false, round = event.round, points = event.points)
+                is GameEvent.LevelCompleted -> finish(passed = true, round = event.round, points = event.points)
                 else -> Unit
             }
         }
@@ -127,6 +127,9 @@ class GameSession(
     /** Called when the player's release fired the round's balls. */
     fun onFired() = play(feedback.fired())
 
+    /** Whether the music loop should play; the music setting can still keep it silent. */
+    fun setMusicPlaying(playing: Boolean) = services.audio.setMusicPlaying(playing)
+
     /**
      * Drops the current game, finished or not, and starts a new one: [level] on its fixed seed,
      * or free play on a fresh seed when it is null.
@@ -142,9 +145,9 @@ class GameSession(
         bestBeforeGame = bestPoints
     }
 
-    private fun finish(passed: Boolean, points: Long) {
+    private fun finish(passed: Boolean, round: Int, points: Long) {
         val level = level
-        if (level != null) progress.record(level, passed, points)
+        if (level != null) progress.record(level, passed, round, points)
         if (!pointsCounted) {
             pointsCounted = true
             playerRank = rankStore.addPoints(points)

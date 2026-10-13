@@ -13,7 +13,7 @@ import kotlin.math.sin
  * Collision math lives behind [physics]; abilities plug in through [Ability].
  *
  * A round goes Aiming -> Firing -> Returning -> Advancing -> Aiming, or ends in GameOver
- * (a brick reached the floor row) or LevelComplete (a level's [goalRounds] were survived).
+ * (a brick reached the floor row) or LevelComplete (a level's last row came and every brick is broken).
  * Nothing moves while Aiming, so a game depends only on [seed] and the angle fired each round,
  * never on frame timing.
  */
@@ -27,8 +27,8 @@ class BrickGame(
     private val earnable: List<Ability> = Abilities.earnable,
     /** Bricks on the board before round 1, top row first, placed just below round 1's new row. */
     layout: List<List<Long?>> = emptyList(),
-    /** Rounds to survive for a level; null for an endless game. */
-    override val goalRounds: Int? = null,
+    /** For a level, the rounds that bring a new row; then the board must be cleared. Null for an endless game. */
+    override val levelRows: Int? = null,
 ) : GameEngine {
     private val random = SeededRandom(seed)
     private val events = mutableListOf<GameEvent>()
@@ -89,7 +89,7 @@ class BrickGame(
     }
 
     init {
-        require(goalRounds == null || goalRounds >= 1)
+        require(levelRows == null || levelRows >= 1)
         // Row 0 is round 1's new row and the floor row ends the game, so a layout fits in between.
         require(layout.size <= config.rows - 2) { "a layout has at most ${config.rows - 2} rows" }
         // A level's layout is the whole starting board; extra rank rows are for endless games.
@@ -228,8 +228,8 @@ class BrickGame(
 
     private fun endRound() {
         launchX = firstLandingX ?: launchX
-        if (goalRounds != null && round >= goalRounds) {
-            // Surviving the last round wins; its bricks never drop.
+        if (levelRows != null && round >= levelRows && board.bricks().none()) {
+            // A level is won only once its last row has come and every brick is broken.
             phase = RoundPhase.LevelComplete
             events += GameEvent.LevelCompleted(round, points)
             return
@@ -255,7 +255,8 @@ class BrickGame(
             ball.vy = 0f
             ball.state = BallState.Waiting
         }
-        spawnRow(config.rowValues.valueFor(round))
+        // A level's rows stop after its last row round; the rest is clearing the board.
+        if (levelRows == null || round <= levelRows) spawnRow(config.rowValues.valueFor(round))
         stepsInPhase = 0
         phase = RoundPhase.Aiming
         events += GameEvent.RoundStarted(round, ballCount)

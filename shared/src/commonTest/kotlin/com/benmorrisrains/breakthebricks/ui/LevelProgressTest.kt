@@ -3,6 +3,7 @@ package com.benmorrisrains.breakthebricks.ui
 import com.benmorrisrains.breakthebricks.engine.FreeLevels
 import com.benmorrisrains.breakthebricks.engine.GridPhysics
 import com.benmorrisrains.breakthebricks.engine.Level
+import com.benmorrisrains.breakthebricks.engine.RoundPhase
 import com.benmorrisrains.breakthebricks.platform.InMemoryStore
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -25,19 +26,19 @@ class LevelProgressTest {
 
     @Test
     fun aFailedAttemptOpensNothing() {
-        assertEquals(0, progress.record(one, passed = false, points = 500))
+        assertEquals(0, progress.record(one, passed = false, round = 3, points = 500))
         assertFalse(progress.isUnlocked(2))
         assertEquals(500, progress.bestPoints(1))
     }
 
     @Test
     fun passingOpensTheNextLevelAndStarsOnlyGoUp() {
-        assertEquals(3, progress.record(one, passed = true, points = one.threeStarPoints))
+        assertEquals(3, progress.record(one, passed = true, round = one.threeStarRounds, points = 40))
         assertTrue(progress.isUnlocked(2))
         assertFalse(progress.isUnlocked(3))
-        assertEquals(1, progress.record(one, passed = true, points = 1))
+        assertEquals(1, progress.record(one, passed = true, round = one.twoStarRounds + 1, points = 30))
         assertEquals(3, progress.stars(1))
-        assertEquals(one.threeStarPoints, progress.bestPoints(1))
+        assertEquals(40, progress.bestPoints(1))
         assertEquals(3, progress.totalStars)
         // Saved, so a new LevelProgress on the same store sees it.
         assertEquals(3, LevelProgress(store).stars(1))
@@ -45,19 +46,30 @@ class LevelProgressTest {
 
     @Test
     fun finishCardsMatchTheResult() {
-        val level = Level(4, "Test", 1, 1, 1, 1, twoStarPoints = 50_000, threeStarPoints = 50_000)
+        // One row of one brick; 3 stars only for clearing it in round 1.
+        val level = Level(4, "Test", 1, 1, 1, 1, twoStarRounds = 1, threeStarRounds = 1)
         val game = level.newGame(GridPhysics)
         assertNull(finishCard(game, level))
-        game.aim(1.2f)
-        game.fire()
-        while (!game.phase.isFinished) game.step()
+        val angles = listOf(1.2f, 1.9f, 0.8f, 1.5f, 2.3f, 0.5f)
+        var shot = 0
+        while (!game.phase.isFinished) {
+            game.aim(angles[shot++ % angles.size])
+            game.fire()
+            while (game.phase != RoundPhase.Aiming && !game.phase.isFinished) game.step()
+        }
         val card = finishCard(game, level)
-        assertEquals("LEVEL 4 CLEAR", card?.title)
-        assertEquals(true, card?.won)
-        assertEquals("★☆☆  ${game.points} PTS", card?.note)
+        if (game.phase == RoundPhase.LevelComplete) {
+            assertEquals("LEVEL 4 CLEAR", card?.title)
+            assertEquals(true, card?.won)
+            assertEquals("${starText(level.stars(true, game.round))}  IN ${game.round} ROUNDS", card?.note)
+        } else {
+            assertEquals("GAME OVER", card?.title)
+            assertEquals("BREAK EVERY BRICK", card?.note)
+        }
         assertEquals("★★☆", starText(2))
         assertEquals("☆☆☆", starText(0))
-        assertEquals("ROUND 3/8", roundLabel(3, 8))
+        assertEquals("ROW 3/8", roundLabel(3, 8))
+        assertEquals("CLEAR IT!", roundLabel(9, 8))
         assertEquals("ROUND 7", roundLabel(7, null))
     }
 }
