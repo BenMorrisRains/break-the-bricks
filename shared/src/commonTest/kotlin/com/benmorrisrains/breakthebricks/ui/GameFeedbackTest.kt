@@ -60,6 +60,38 @@ class GameFeedbackTest {
     }
 
     @Test
+    fun aNewRoundThudsAndTicks() {
+        val round = GameFeedback().frame(frame, listOf(GameEvent.RoundStarted(round = 4, ballCount = 4)))
+        assertEquals(setOf(SoundEffect.RoundStart), round.sounds)
+        assertEquals(HapticStrength.Light, round.haptic)
+    }
+
+    @Test
+    fun onlyTheFirstBallHomeTicks() {
+        val feedback = GameFeedback()
+        assertEquals(setOf(SoundEffect.BallReturn), feedback.frame(frame, listOf(GameEvent.BallLanded(2f, isFirst = true))).sounds)
+        assertEquals(Feedback.None, feedback.frame(frame, listOf(GameEvent.BallLanded(2f, isFirst = false))))
+    }
+
+    @Test
+    fun earningAnAbilityAndPassingALevelEachHaveTheirOwnJingle() {
+        val earned = GameFeedback().frame(frame, listOf(GameEvent.AbilityEarned("grenade", 5)))
+        assertEquals(setOf(SoundEffect.AbilityEarned), earned.sounds)
+        assertEquals(HapticStrength.Medium, earned.haptic)
+        val passed = GameFeedback().frame(frame, listOf(GameEvent.LevelCompleted(round = 20, points = 400)))
+        assertEquals(setOf(SoundEffect.LevelComplete), passed.sounds)
+        assertEquals(HapticStrength.Medium, passed.haptic)
+    }
+
+    @Test
+    fun aStrongerTapIsNeverDroppedByTheLightTapLimit() {
+        val feedback = GameFeedback()
+        feedback.frame(frame, listOf(GameEvent.BrickBroken(0, 0, 1)))
+        val grenade = feedback.frame(frame, listOf(GameEvent.AbilityTriggered("grenade", 3, 4)))
+        assertEquals(HapticStrength.Heavy, grenade.haptic)
+    }
+
+    @Test
     fun firingPlaysTheFireSound() {
         val fired = GameFeedback().fired()
         assertEquals(setOf(SoundEffect.Fire), fired.sounds)

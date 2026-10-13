@@ -48,6 +48,7 @@ class GameSessionTest {
         val sounds = mutableListOf<SoundEffect>()
         val taps = mutableListOf<HapticStrength>()
         override fun play(effect: SoundEffect) { sounds += effect }
+        override fun setMusicPlaying(playing: Boolean) = Unit
         override fun setMusicEnabled(enabled: Boolean) = Unit
         override fun setEffectsEnabled(enabled: Boolean) = Unit
         override fun tap(strength: HapticStrength) { taps += strength }

@@ -127,6 +127,9 @@ class GameSession(
     /** Called when the player's release fired the round's balls. */
     fun onFired() = play(feedback.fired())
 
+    /** Whether the music loop should play; the music setting can still keep it silent. */
+    fun setMusicPlaying(playing: Boolean) = services.audio.setMusicPlaying(playing)
+
     /**
      * Drops the current game, finished or not, and starts a new one: [level] on its fixed seed,
      * or free play on a fresh seed when it is null.
