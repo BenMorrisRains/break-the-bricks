@@ -33,6 +33,9 @@ class BrickGame(
     override val levelRows: Int? = null,
 ) : GameEngine {
     private val random = SeededRandom(seed)
+
+    /** Split directions draw from their own stream, so a split never changes the rows that come. */
+    private val splitRandom = SeededRandom(seed xor SPLIT_STREAM)
     private val events = mutableListOf<GameEvent>()
     private val ballList = mutableListOf<Ball>()
     private val abilityList = abilities.toMutableList()
@@ -100,9 +103,9 @@ class BrickGame(
             val brick = board[column, row] ?: return
             damageBrick(column, row, brick.hits)
         }
-        override fun splitFirstBall(extraBalls: Int, spreadRadians: Float) {
-            require(extraBalls >= 0)
-            pendingSplit = extraBalls to spreadRadians
+        override fun splitFirstBall(extraBalls: Int, maxTurnRadians: Float) {
+            require(extraBalls >= 0 && maxTurnRadians >= 0f)
+            pendingSplit = extraBalls to maxTurnRadians
         }
     }
 
@@ -247,26 +250,46 @@ class BrickGame(
     }
 
     /**
-     * Adds [extraBalls] normal balls at [ball], at the same speed, turned [spread] radians from it
-     * alternately to each side (+1, -1, +2, -2 ...). A turn that would leave a ball flatter than
-     * [GameConfig.minAimAngle] is steepened to it, so no ball skims back and forth forever.
+     * Adds [extraBalls] normal balls at [ball] and sends them and [ball] off at the same speed in
+     * seeded random directions up to [maxTurn] radians either side of its heading.
      */
-    private fun split(ball: Ball, extraBalls: Int, spread: Float) {
+    private fun split(ball: Ball, extraBalls: Int, maxTurn: Float) {
         val speed = sqrt(ball.vx * ball.vx + ball.vy * ball.vy)
         if (speed == 0f) return
         val heading = atan2(ball.vy, ball.vx)
-        for (i in 1..extraBalls) {
-            val side = if (i % 2 == 1) 1 else -1
-            val angle = heading + side * ((i + 1) / 2) * spread
-            var vx = cos(angle) * speed
-            var vy = sin(angle) * speed
-            val minVy = sin(config.minAimAngle) * speed
-            if (abs(vy) < minVy) {
-                vy = if (vy > 0f) minVy else -minVy
-                vx = (if (vx < 0f) -1f else 1f) * cos(config.minAimAngle) * speed
-            }
-            ballList += Ball(ball.x, ball.y, vx, vy, BallState.Flying)
+        // One slice of [-maxTurn, maxTurn] per ball, in a seeded random order, and a seeded
+        // random angle inside each slice, so the balls scatter yet never bunch up.
+        val count = extraBalls + 1
+        val slices = IntArray(count) { it }
+        for (i in count - 1 downTo 1) {
+            val j = splitRandom.nextInt(i + 1)
+            val swap = slices[i]
+            slices[i] = slices[j]
+            slices[j] = swap
         }
+        val sliceWidth = 2 * maxTurn / count
+        val newBalls = List(extraBalls) { Ball(ball.x, ball.y, state = BallState.Flying) }
+        for ((index, target) in (listOf(ball) + newBalls).withIndex()) {
+            val turn = -maxTurn + sliceWidth * (slices[index] + splitRandom.nextFloat())
+            aimBall(target, heading + turn, speed)
+        }
+        ballList += newBalls
+    }
+
+    /**
+     * Points [ball] along [angle] at [speed]. An angle flatter than [GameConfig.minAimAngle] is
+     * steepened to it, so no ball skims back and forth forever.
+     */
+    private fun aimBall(ball: Ball, angle: Float, speed: Float) {
+        var vx = cos(angle) * speed
+        var vy = sin(angle) * speed
+        val minVy = sin(config.minAimAngle) * speed
+        if (abs(vy) < minVy) {
+            vy = if (vy > 0f) minVy else -minVy
+            vx = (if (vx < 0f) -1f else 1f) * cos(config.minAimAngle) * speed
+        }
+        ball.vx = vx
+        ball.vy = vy
     }
 
     /** Ability effects last one flight. */
@@ -401,5 +424,8 @@ class BrickGame(
     companion object {
         /** Longest frame [advance] will catch up on; anything longer is treated as this much. */
         const val MAX_FRAME_SECONDS = 0.25f
+
+        /** Mixed into the seed for the split-direction stream. */
+        private const val SPLIT_STREAM = 0x5EED5B117L
     }
 }

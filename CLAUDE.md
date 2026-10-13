@@ -31,7 +31,7 @@ If code and the doc disagree, the doc wins; if the doc is silent, ask Ben in you
 - Points: each hit takes 1 off a brick and scores 1 point. New-row values are the Fibonacci number for the round divided by 8, rounded up (Ben, 2026-10-12 playtests): 1 for rounds 1 to 6, then 2, 3, 5, 7, 12, 18, 30, ...
 - Power-ups (Ben's lineup, 2026-10-13). Each is earned at its round and from then on acts on the first ball of every round; its wager target is 5 rounds later:
   - Big ball, round 5 (target 10): the first ball is three times the normal size, and a face hit that overhangs the next brick hits that brick too (Ben, 2026-10-13 playtest: big enough to hit two bricks at a time).
-  - Splitter, round 10 (target 15): the first ball splits into 3 on its first hit.
+  - Splitter, round 10 (target 15): the first ball splits into 3 on its first hit, and all three fly off in seeded random directions up to about 75 degrees either side of its heading (Ben, 2026-10-13 playtest: "go kind of crazy in different directions").
   - Drill, round 20 (target 25): the first ball passes through up to 3 bricks, hitting each once, then bounces normally.
   - Grenade ball, round 30 (target 35): the first ball explodes on its first hit and destroys only that brick, whatever its number (Ben, 2026-10-12 playtest). Ben moved it off round 5 because it was too powerful early.
 - No real-money wagers. Players stake earned abilities. A wager is won by reaching the ability's target round.
