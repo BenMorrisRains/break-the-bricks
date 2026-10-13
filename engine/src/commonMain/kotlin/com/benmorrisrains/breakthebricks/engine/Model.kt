@@ -36,11 +36,21 @@ class Ball(
     var vx: Float = 0f,
     var vy: Float = 0f,
     var state: BallState = BallState.Waiting,
-)
+    /** Multiplier on [GameConfig.ballRadius]; abilities such as the big ball raise it for one flight. */
+    var size: Float = 1f,
+    /** Bricks this ball still passes through, hitting each once, instead of bouncing off. */
+    var pierce: Int = 0,
+) {
+    /** Cells of bricks this ball is passing through; the physics keeps it, the engine clears it. */
+    internal val insideBricks = mutableSetOf<Int>()
+
+    /** This ball's radius in cells. */
+    fun radius(config: GameConfig): Float = config.ballRadius * size
+}
 
 /**
  * Where a round is. The UI only accepts aim input in [Aiming]. A game finishes in [GameOver]
- * (a brick reached the floor row) or, in a level, [LevelComplete] (its goal rounds survived).
+ * (a brick reached the floor row) or, in a level, [LevelComplete] (every brick broken).
  */
 enum class RoundPhase {
     Aiming, Firing, Returning, Advancing, GameOver, LevelComplete;

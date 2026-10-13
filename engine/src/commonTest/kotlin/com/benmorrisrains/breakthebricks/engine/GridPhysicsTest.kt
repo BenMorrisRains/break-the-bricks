@@ -8,6 +8,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.test.fail
 
 class GridPhysicsTest {
     private val config = GameConfig()
@@ -363,5 +364,73 @@ class GridPhysicsTest {
         val still = Ball(x = 1f, y = 1f)
         assertFalse(step(still, board()))
         assertEquals(1f, still.y)
+    }
+
+    @Test
+    fun aBigBallTouchesBricksAtItsOwnRadius() {
+        val board = board().apply { put(3, 2, hits = 5) }
+        val big = Ball(x = 3.5f, y = 4f, vx = 0f, vy = -10f, size = 2f)
+        step(big, board, seconds = 0.2f)
+        assertEquals(10f, big.vy)
+        // Up to the brick's bottom face at 3 + 2r, then back down for the rest of the 2 cells.
+        val toFace = 4f - (3f + 2 * r)
+        assertNear(3f + 2 * r + (2f - toFace), big.y)
+    }
+
+    @Test
+    fun aBigBallLandsAtItsOwnRadius() {
+        val big = Ball(x = 2f, y = 8f, vx = 0f, vy = 10f, size = 2f)
+        assertTrue(step(big, board(), seconds = 0.5f))
+        assertNear(config.rows - 2 * r, big.y)
+    }
+
+    /** Steps [ball] until it heads back down below [belowY], or fails. */
+    private fun flyUpAndBack(ball: Ball, board: Board, recorder: Recorder, belowY: Float) {
+        var steps = 0
+        while (!(ball.vy > 0f && ball.y > belowY)) {
+            step(ball, board, listener = recorder)
+            if (steps++ > 2_000) fail("the ball never came back down")
+        }
+    }
+
+    @Test
+    fun aPiercingBallPassesThroughThenBouncesAndHitsEachBrickOnce() {
+        val board = board().apply { for (row in 1..4) put(3, row) }
+        val recorder = Recorder(board)
+        val ball = Ball(x = 3.5f, y = 6f, vx = 0f, vy = -10f, pierce = 3)
+        flyUpAndBack(ball, board, recorder, belowY = 5f + r + 0.1f)
+        // Through rows 4, 3 and 2, a bounce off row 1, then back out through the drilled bricks.
+        assertEquals(listOf(3 to 4, 3 to 3, 3 to 2, 3 to 1), recorder.hits)
+        assertEquals(0, ball.pierce)
+        assertTrue(ball.insideBricks.isEmpty())
+        assertEquals(10f, ball.vy)
+    }
+
+    @Test
+    fun drilledBricksAreSolidAgainOnceTheBallIsClear() {
+        val board = board().apply { put(3, 3) }
+        val recorder = Recorder(board)
+        val ball = Ball(x = 3.5f, y = 6f, vx = 0f, vy = -10f, pierce = 1)
+        // Through the brick, off the ceiling, then down onto the same brick's top, which it bounces off.
+        var steps = 0
+        while (recorder.hits.size < 2) {
+            step(ball, board, listener = recorder)
+            if (steps++ > 2_000) fail("the ball never came back to the brick")
+        }
+        assertEquals(listOf(3 to 3, 3 to 3), recorder.hits)
+        assertEquals(-10f, ball.vy)
+        assertTrue(ball.y < 3f)
+    }
+
+    @Test
+    fun aPiercingBallBouncesWhenOneContactTouchesMoreBricksThanItHasLeft() {
+        // Straight up between two bricks: both are hit at once, but only 1 pierce is left.
+        val board = board().apply { put(2, 2); put(3, 2) }
+        val recorder = Recorder(board)
+        val ball = Ball(x = 3f, y = 4f, vx = 0f, vy = -10f, pierce = 1)
+        step(ball, board, seconds = 0.2f, listener = recorder)
+        assertEquals(listOf(2 to 2, 3 to 2), recorder.hits)
+        assertEquals(10f, ball.vy)
+        assertEquals(1, ball.pierce)
     }
 }

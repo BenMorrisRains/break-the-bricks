@@ -46,7 +46,7 @@ object LevelBot {
     /** Higher is better: win, then avoid the floor, then score. Low bricks with many hits count most. */
     private fun score(game: BrickGame): Double = when (game.phase) {
         RoundPhase.GameOver -> -1e18 + game.round
-        RoundPhase.LevelComplete -> 1e15 + game.points
+        RoundPhase.LevelComplete -> 1e15 - game.round * 1e6 + game.points
         else -> game.points - game.board.bricks().sumOf { brick ->
             val depth = (brick.row + 1).toDouble()
             brick.hits * depth * depth

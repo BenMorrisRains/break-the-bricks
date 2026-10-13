@@ -29,6 +29,12 @@ fun formatPoints(points: Long): String {
     return if (points < 0) "-$grouped" else grouped
 }
 
-/** HUD round text: "ROUND 7", or "ROUND 3/8" in a level with a goal of 8 rounds. */
-fun roundLabel(round: Int, goalRounds: Int?): String =
-    if (goalRounds == null) "ROUND $round" else "ROUND $round/$goalRounds"
+/**
+ * HUD round text: "ROUND 7" in an endless game. In a level with 8 rows, "ROW 3/8" while rows
+ * still come, then "CLEAR IT!" once only breaking the rest is left.
+ */
+fun roundLabel(round: Int, levelRows: Int?): String = when {
+    levelRows == null -> "ROUND $round"
+    round <= levelRows -> "ROW $round/$levelRows"
+    else -> "CLEAR IT!"
+}

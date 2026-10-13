@@ -24,10 +24,17 @@ object NeonPalette {
      * Color for a brick worth [hits] when the newest row is worth [roundValue]:
      * the toughest bricks on the board always read as magenta.
      */
-    fun brickColor(hits: Long, roundValue: Long): Color {
-        if (roundValue <= 1L) return BrickTiers.first()
-        val ratio = (hits.toDouble() / roundValue.toDouble()).coerceIn(0.0, 1.0)
-        val index = (ratio * (BrickTiers.size - 1)).toInt()
-        return BrickTiers[index]
+    fun brickColor(hits: Long, roundValue: Long): Color =
+        BrickTiers[brickTier(hits, roundValue, BrickTiers.size)]
+
+    /** The color for an effect's [Tint]. */
+    fun tint(tint: Tint): Color = when (tint) {
+        Tint.Ink -> Ink
+        Tint.Cyan -> Cyan
+        Tint.Lime -> Lime
+        Tint.Yellow -> Yellow
+        Tint.Orange -> Orange
+        Tint.Magenta -> Magenta
+        Tint.Purple -> Purple
     }
 }

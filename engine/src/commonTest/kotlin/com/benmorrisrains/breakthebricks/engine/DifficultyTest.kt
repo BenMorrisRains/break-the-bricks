@@ -73,14 +73,14 @@ class DifficultyTest {
     fun abilitiesAreStillEarnedAtTheSameRound() {
         val game = BrickGame(Difficulty.forRank(40), seed = 2, physics = DropPhysics { 3.5f })
         val earned = mutableListOf<GameEvent.AbilityEarned>()
-        while (game.phase != RoundPhase.GameOver && game.round < GrenadeBall.earnedAtRound) {
+        while (game.phase != RoundPhase.GameOver && game.round < BigBall.earnedAtRound) {
             game.aim(1.0f)
             game.fire()
             while (game.phase != RoundPhase.Aiming && game.phase != RoundPhase.GameOver) game.advance(1f / 60)
             earned += game.drainEvents().filterIsInstance<GameEvent.AbilityEarned>()
         }
-        assertEquals(GrenadeBall.earnedAtRound, game.round)
-        assertEquals(listOf(GameEvent.AbilityEarned(GrenadeBall.id, GrenadeBall.earnedAtRound)), earned)
+        assertEquals(BigBall.earnedAtRound, game.round)
+        assertEquals(listOf(GameEvent.AbilityEarned(BigBall.id, BigBall.earnedAtRound)), earned)
     }
 
     @Test

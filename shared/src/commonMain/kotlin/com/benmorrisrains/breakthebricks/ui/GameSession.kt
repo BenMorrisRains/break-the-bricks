@@ -105,7 +105,7 @@ class GameSession(
                 isNewBest = engine.points > bestBeforeGame,
                 level = level,
                 passed = passed,
-                stars = level?.stars(passed, engine.points) ?: 0,
+                stars = level?.stars(passed, engine.round) ?: 0,
                 rankUp = rankUp,
                 stake = wager.stake,
                 wagerOutcome = wager.outcome,
@@ -120,8 +120,8 @@ class GameSession(
         for (event in events) {
             bank.save(wager.onEvent(event, bank.inventory))
             when (event) {
-                is GameEvent.GameOver -> finish(passed = false, points = event.points)
-                is GameEvent.LevelCompleted -> finish(passed = true, points = event.points)
+                is GameEvent.GameOver -> finish(passed = false, round = event.round, points = event.points)
+                is GameEvent.LevelCompleted -> finish(passed = true, round = event.round, points = event.points)
                 else -> Unit
             }
         }
@@ -175,9 +175,9 @@ class GameSession(
     /** Leaves the current game. A wager still open is lost; its copy was taken at the start. */
     fun quit() = wager.abandon()
 
-    private fun finish(passed: Boolean, points: Long) {
+    private fun finish(passed: Boolean, round: Int, points: Long) {
         val level = level
-        if (level != null) progress.record(level, passed, points)
+        if (level != null) progress.record(level, passed, round, points)
         if (!pointsCounted) {
             pointsCounted = true
             playerRank = rankStore.addPoints(points)

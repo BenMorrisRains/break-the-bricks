@@ -71,6 +71,7 @@ fun PauseMenu(
  * After a game: points, the round reached, the best, rank progress (with a banner when the game
  * took the player up a rank), Play again and Home. After
  * a level it also shows pass or fail with the stars, Next level once passed, and Levels.
+ * Abilities the game didn't reach are shown off as locked, with their preview clips.
  */
 @Composable
 fun ResultsScreen(
@@ -91,18 +92,20 @@ fun ResultsScreen(
         }
         if (level != null) {
             MenuLabel(starText(result.stars), NeonPalette.Yellow, 32.sp)
-            if (!result.passed) MenuLabel("SURVIVE ${level.goalRounds} ROUNDS TO PASS", NeonPalette.Cyan)
+            if (!result.passed) MenuLabel("BREAK EVERY BRICK TO PASS", NeonPalette.Cyan)
         }
         MenuLabel(formatPoints(result.points), NeonPalette.Ink, 44.sp)
         MenuLabel("POINTS", NeonPalette.Purple)
         if (result.isNewBest) MenuLabel("NEW BEST!", NeonPalette.Yellow, 20.sp)
-        MenuLabel(roundLabel(result.round, level?.goalRounds), NeonPalette.Cyan, 18.sp)
+        val roundText = if (result.passed) "CLEARED IN ${result.round} ROUNDS" else "ROUND ${result.round}"
+        MenuLabel(roundText, NeonPalette.Cyan, 18.sp)
         for (line in wagerLines(result)) {
             MenuLabel(line.text, if (line.won) NeonPalette.Lime else NeonPalette.Orange, 16.sp)
         }
         MenuLabel("BEST ${formatPoints(result.bestPoints)}")
         result.rankUp?.let { MenuLabel("RANK UP!  RANK ${it.to}", NeonPalette.Lime, 22.sp) }
         RankPanel(rank)
+        LockedAbilities(lockedAbilities(result.round))
         Spacer(Modifier.height(16.dp))
         if (onNextLevel != null) NeonButton("NEXT LEVEL", onNextLevel, color = NeonPalette.Lime)
         NeonButton(if (level == null) "PLAY AGAIN" else "RETRY", onPlayAgain, color = if (onNextLevel == null) NeonPalette.Lime else NeonPalette.Orange)

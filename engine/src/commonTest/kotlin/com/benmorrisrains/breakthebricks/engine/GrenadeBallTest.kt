@@ -39,17 +39,19 @@ class GrenadeBallTest {
     private fun cells(game: BrickGame) = game.board.bricks().filter { it.row > 0 }.map { it.column to it.row }.toSet()
 
     @Test
-    fun grenadeIsEarnedOnReachingRoundFiveAndStaysActive() {
-        val game = BrickGame(seed = 3, physics = DropPhysics { 3.5f })
-        assertEquals(listOf(GrenadeBall), Abilities.earnable)
+    fun grenadeIsEarnedOnReachingRoundThirtyAndStaysActive() {
+        // A tall board so a game that never breaks a brick lasts past round 30.
+        val game = BrickGame(GameConfig(rows = 40), seed = 3, physics = DropPhysics { 3.5f }, earnable = listOf(GrenadeBall))
+        assertEquals(30, GrenadeBall.earnedAtRound)
+        assertEquals(35, GrenadeBall.wagerTargetRound)
         val earned = mutableListOf<GameEvent.AbilityEarned>()
-        while (game.round < 5) {
+        while (game.round < 30) {
             assertEquals(emptyList(), game.activeAbilities, "round ${game.round}")
             earned += game.drainEvents().filterIsInstance<GameEvent.AbilityEarned>()
             playRound(game)
         }
         earned += game.drainEvents().filterIsInstance<GameEvent.AbilityEarned>()
-        assertEquals(listOf(GameEvent.AbilityEarned("grenade", 5)), earned)
+        assertEquals(listOf(GameEvent.AbilityEarned("grenade", 30)), earned)
         assertEquals(listOf<Ability>(GrenadeBall), game.activeAbilities)
 
         while (game.phase != RoundPhase.GameOver) {
@@ -57,17 +59,18 @@ class GrenadeBallTest {
             assertEquals(listOf<Ability>(GrenadeBall), game.activeAbilities, "round ${game.round}")
             assertTrue(game.drainEvents().none { it is GameEvent.AbilityEarned })
         }
-        assertTrue(game.round > 5)
+        assertTrue(game.round > 30)
     }
 
     @Test
-    fun grenadeOnlyExplodesFromRoundFiveOn() {
-        val game = BrickGame(GameConfig(minBricksPerRow = 7, maxBricksPerRow = 7), seed = 1, physics = hitOnce(0, 0))
-        repeat(4) {
+    fun grenadeOnlyExplodesFromRoundThirtyOn() {
+        val config = GameConfig(rows = 40, minBricksPerRow = 7, maxBricksPerRow = 7)
+        val game = BrickGame(config, seed = 1, physics = hitOnce(0, 0), earnable = listOf(GrenadeBall))
+        repeat(29) {
             playRound(game)
             assertTrue(game.drainEvents().none { it is GameEvent.AbilityTriggered }, "round ${game.round - 1}")
         }
-        assertEquals(5, game.round)
+        assertEquals(30, game.round)
         playRound(game)
         val events = game.drainEvents()
         assertEquals(1, events.count { it is GameEvent.AbilityTriggered })
@@ -76,10 +79,13 @@ class GrenadeBallTest {
 
     @Test
     fun aStakedGrenadeIsNotDoubledWhenEarnedAgain() {
-        val game = BrickGame(seed = 3, physics = DropPhysics { 3.5f }, abilities = listOf(GrenadeBall))
-        repeat(4) { playRound(game) }
-        assertEquals(5, game.round)
-        assertTrue(GameEvent.AbilityEarned("grenade", 5) in game.drainEvents())
+        val game = BrickGame(
+            GameConfig(rows = 40), seed = 3, physics = DropPhysics { 3.5f },
+            abilities = listOf(GrenadeBall), earnable = listOf(GrenadeBall),
+        )
+        repeat(29) { playRound(game) }
+        assertEquals(30, game.round)
+        assertTrue(GameEvent.AbilityEarned("grenade", 30) in game.drainEvents())
         assertEquals(listOf<Ability>(GrenadeBall), game.activeAbilities)
     }
 
@@ -123,7 +129,7 @@ class GrenadeBallTest {
     fun sameSeedAndAnglesGiveTheSameGrenadeGame() {
         val angles = listOf(1.2f, 2.0f, 0.6f, 1.57f, 2.5f, 0.9f, 1.8f, 1.1f, 2.2f, 0.4f, 1.4f, 2.7f)
         fun play(): Pair<BrickGame, List<GameEvent>> {
-            val game = BrickGame(seed = 2026, physics = TestPhysics())
+            val game = BrickGame(seed = 2026, physics = TestPhysics(), abilities = listOf(GrenadeBall))
             val events = mutableListOf<GameEvent>()
             var i = 0
             while (game.phase != RoundPhase.GameOver && i < 60) {

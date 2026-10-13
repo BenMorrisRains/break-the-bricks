@@ -70,7 +70,7 @@ class WagerFlowTest {
         val result = assertIs<Screen.Results>(shell.screen).result
         assertEquals(WagerOutcome.Unstaked, result.wagerOutcome)
         assertEquals(listOf<Ability>(GrenadeBall), result.banked)
-        assertEquals(listOf(WagerLine("GRENADE BANKED +1", won = true)), wagerLines(result))
+        assertEquals(listOf(WagerLine("GRENADE BALL BANKED +1", won = true)), wagerLines(result))
         assertEquals(emptyList(), stakes.last(), "nothing staked")
     }
 
@@ -97,7 +97,7 @@ class WagerFlowTest {
 
         val result = assertIs<Screen.Results>(shell.screen).result
         assertEquals(WagerOutcome.Won, result.wagerOutcome)
-        assertEquals(listOf(WagerLine("GRENADE KEPT +1  (GRENADE x2)", won = true)), wagerLines(result))
+        assertEquals(listOf(WagerLine("GRENADE BALL KEPT +1  (GRENADE BALL x2)", won = true)), wagerLines(result))
         assertEquals(2, launch().grenades, "the win is saved")
     }
 
@@ -112,7 +112,7 @@ class WagerFlowTest {
 
         val result = assertIs<Screen.Results>(shell.screen).result
         assertEquals(WagerOutcome.Lost, result.wagerOutcome)
-        assertEquals(listOf(WagerLine("GRENADE LOST  (GRENADE x0)", won = false)), wagerLines(result))
+        assertEquals(listOf(WagerLine("GRENADE BALL LOST  (GRENADE BALL x0)", won = false)), wagerLines(result))
         assertEquals(0, shell.grenades)
 
         shell.play()
@@ -128,7 +128,7 @@ class WagerFlowTest {
         shell.playFreePlay()
         shell.stake(GrenadeBall)
         shell.pause()
-        assertEquals("QUITTING LOSES YOUR GRENADE", quitWarning(shell.session.wager.stake, shell.session.wager.outcome))
+        assertEquals("QUITTING LOSES YOUR GRENADE BALL", quitWarning(shell.session.wager.stake, shell.session.wager.outcome))
         shell.goHome()
         assertEquals(WagerOutcome.Lost, shell.session.wager.outcome)
         assertEquals(2, shell.grenades)
@@ -202,7 +202,7 @@ class WagerFlowTest {
 
     @Test
     fun wagerScreenText() {
-        assertEquals("GRENADE x3", stakeCardText(GrenadeBall, 3))
+        assertEquals("GRENADE BALL x3", stakeCardText(GrenadeBall, 3))
         assertEquals("REACH ROUND $target TO KEEP IT, +1", stakeGoalText(GrenadeBall))
         assertNull(quitWarning(null, WagerOutcome.Unstaked))
         assertNull(quitWarning(GrenadeBall, WagerOutcome.Won), "nothing left to lose once won")
