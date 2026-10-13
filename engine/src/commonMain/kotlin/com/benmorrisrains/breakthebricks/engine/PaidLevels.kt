@@ -139,7 +139,7 @@ rows 13
 bricks 5 7
 ahead 2
 power drill
-stars 18 15
+stars 15 13
 row . 16 . 16 . 16 .
 row . 14 . 14 . 14 .
 row . 10 . 10 . 10 .
