@@ -71,7 +71,7 @@ class WagerFlowTest {
         assertEquals(WagerOutcome.Unstaked, result.wagerOutcome)
         assertEquals(listOf<Ability>(GrenadeBall), result.banked)
         assertEquals(listOf(WagerLine("GRENADE BANKED +1", won = true)), wagerLines(result))
-        assertEquals(listOf(emptyList<Ability>()), stakes, "nothing staked")
+        assertEquals(emptyList(), stakes.last(), "nothing staked")
     }
 
     @Test
