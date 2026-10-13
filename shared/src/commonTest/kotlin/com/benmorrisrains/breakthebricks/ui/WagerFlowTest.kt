@@ -35,6 +35,9 @@ class WagerFlowTest {
         settings = GameSettings(PlatformServices(store = store)),
     )
 
+    private val earnRound = GrenadeBall.earnedAtRound
+    private val target = GrenadeBall.wagerTargetRound
+
     private val GameShell.grenades get() = session.bank.inventory.count(GrenadeBall.id)
 
     private fun GameShell.event(vararg events: GameEvent) = onFrame(0.016f, events.toList())
@@ -50,12 +53,12 @@ class WagerFlowTest {
         onFrame(GameSession.RESULTS_DELAY_SECONDS, emptyList())
     }
 
-    /** Plays the free first game, earning one grenade at round 5. */
+    /** Plays the free first game, earning one grenade at its round. */
     private fun GameShell.playFirstGameEarningAGrenade() {
         playFreePlay()
         assertEquals(Screen.Game, screen, "the first game is free")
-        reachRound(5)
-        event(GameEvent.AbilityEarned(GrenadeBall.id, 5))
+        reachRound(earnRound)
+        event(GameEvent.AbilityEarned(GrenadeBall.id, earnRound))
         endGame()
     }
 
@@ -84,12 +87,12 @@ class WagerFlowTest {
         assertEquals(listOf<Ability>(GrenadeBall), stakes.last(), "the staked grenade is active from round 1")
         assertEquals(0, shell.grenades, "the stake leaves the inventory as the game starts")
 
-        shell.reachRound(5)
-        shell.event(GameEvent.AbilityEarned(GrenadeBall.id, 5))
+        shell.reachRound(earnRound)
+        shell.event(GameEvent.AbilityEarned(GrenadeBall.id, earnRound))
         assertEquals(0, shell.grenades, "earning the staked ability doesn't bank a copy")
-        shell.reachRound(10)
-        assertEquals(2, shell.grenades, "round 10 wins: stake back plus 1")
-        shell.reachRound(12)
+        shell.reachRound(target)
+        assertEquals(2, shell.grenades, "the target round wins: stake back plus 1")
+        shell.reachRound(target + 2)
         shell.endGame()
 
         val result = assertIs<Screen.Results>(shell.screen).result
@@ -104,7 +107,7 @@ class WagerFlowTest {
         shell.playFirstGameEarningAGrenade()
         shell.playFreePlay()
         shell.stake(GrenadeBall)
-        shell.reachRound(9)
+        shell.reachRound(target - 1)
         shell.endGame()
 
         val result = assertIs<Screen.Results>(shell.screen).result
@@ -169,8 +172,8 @@ class WagerFlowTest {
         val shell = launch()
         shell.session.bank.save(AbilityInventory().add(GrenadeBall.id, 9))
         shell.playFreePlay()
-        shell.reachRound(5)
-        shell.event(GameEvent.AbilityEarned(GrenadeBall.id, 5))
+        shell.reachRound(earnRound)
+        shell.event(GameEvent.AbilityEarned(GrenadeBall.id, earnRound))
         assertEquals(9, shell.grenades)
         assertEquals(9, launch().grenades)
     }
@@ -184,7 +187,7 @@ class WagerFlowTest {
         assertEquals(Screen.Game, shell.screen)
         assertNull(shell.session.wager.stake)
         assertEquals(1, shell.grenades)
-        shell.event(GameEvent.AbilityEarned(GrenadeBall.id, 5))
+        shell.event(GameEvent.AbilityEarned(GrenadeBall.id, earnRound))
         assertEquals(2, shell.grenades)
     }
 
@@ -200,7 +203,7 @@ class WagerFlowTest {
     @Test
     fun wagerScreenText() {
         assertEquals("GRENADE x3", stakeCardText(GrenadeBall, 3))
-        assertEquals("REACH ROUND 10 TO KEEP IT, +1", stakeGoalText(GrenadeBall))
+        assertEquals("REACH ROUND $target TO KEEP IT, +1", stakeGoalText(GrenadeBall))
         assertNull(quitWarning(null, WagerOutcome.Unstaked))
         assertNull(quitWarning(GrenadeBall, WagerOutcome.Won), "nothing left to lose once won")
     }

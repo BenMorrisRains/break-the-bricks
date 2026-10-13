@@ -3,13 +3,13 @@ package com.benmorrisrains.breakthebricks.ui
 import com.benmorrisrains.breakthebricks.engine.Ability
 import com.benmorrisrains.breakthebricks.engine.WagerOutcome
 
-/** The name players see for an ability: "GRENADE" for the grenade ball. */
-fun abilityName(ability: Ability): String = ability.id.uppercase()
+/** The name players see for an ability, from its id: "GRENADE", or "BIG BALL" for "big_ball". */
+fun abilityName(ability: Ability): String = ability.id.replace('_', ' ').replace('-', ' ').uppercase()
 
 /** A wager screen card: "GRENADE x3". */
 fun stakeCardText(ability: Ability, copies: Int): String = "${abilityName(ability)} x$copies"
 
-/** What staking [ability] asks of the player: "REACH ROUND 10 TO KEEP IT, +1". */
+/** What staking [ability] asks of the player, from its own target: "REACH ROUND 10 TO KEEP IT, +1". */
 fun stakeGoalText(ability: Ability): String = "REACH ROUND ${ability.wagerTargetRound} TO KEEP IT, +1"
 
 /** The pause menu's reminder while a wager is open, or null when nothing is at stake. */

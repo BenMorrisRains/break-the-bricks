@@ -9,6 +9,7 @@ import kotlin.test.fail
 
 class WagerTest {
     private val grenade = GrenadeBall.id
+    private val target = GrenadeBall.wagerTargetRound
 
     private fun inventory(grenades: Int) = AbilityInventory().add(grenade, grenades)
 
@@ -47,15 +48,15 @@ class WagerTest {
         for (round in 1 until GrenadeBall.wagerTargetRound) {
             inventory = wager.onEvent(GameEvent.RoundStarted(round, round), inventory)
         }
-        assertEquals(WagerOutcome.Open, wager.outcome, "round 9 isn't enough")
+        assertEquals(WagerOutcome.Open, wager.outcome, "one round short isn't enough")
         assertEquals(1, inventory.count(grenade))
 
-        inventory = wager.onEvent(GameEvent.RoundStarted(10, 10), inventory)
+        inventory = wager.onEvent(GameEvent.RoundStarted(target, target), inventory)
         assertEquals(WagerOutcome.Won, wager.outcome)
         assertEquals(3, inventory.count(grenade), "stake back plus 1")
 
-        inventory = wager.onEvent(GameEvent.RoundStarted(11, 11), inventory)
-        inventory = wager.onEvent(GameEvent.GameOver(round = 11, points = 99), inventory)
+        inventory = wager.onEvent(GameEvent.RoundStarted(target + 1, target + 1), inventory)
+        inventory = wager.onEvent(GameEvent.GameOver(round = target + 1, points = 99), inventory)
         assertEquals(WagerOutcome.Won, wager.outcome, "a won wager stays won after game over")
         assertEquals(3, inventory.count(grenade), "paid out once")
     }
@@ -64,15 +65,15 @@ class WagerTest {
     fun aWinNeverGoesPastNineCopies() {
         val wager = WagerGame(GrenadeBall)
         val inventory = wager.start(inventory(9))
-        assertEquals(9, wager.onEvent(GameEvent.RoundStarted(10, 10), inventory).count(grenade))
+        assertEquals(9, wager.onEvent(GameEvent.RoundStarted(target, target), inventory).count(grenade))
     }
 
     @Test
     fun gameOverBeforeTheTargetLosesTheStake() {
         val wager = WagerGame(GrenadeBall)
         var inventory = wager.start(inventory(1))
-        inventory = wager.onEvent(GameEvent.RoundStarted(7, 7), inventory)
-        inventory = wager.onEvent(GameEvent.GameOver(round = 7, points = 40), inventory)
+        inventory = wager.onEvent(GameEvent.RoundStarted(target - 1, target - 1), inventory)
+        inventory = wager.onEvent(GameEvent.GameOver(round = target - 1, points = 40), inventory)
         assertEquals(WagerOutcome.Lost, wager.outcome)
         assertTrue(inventory.isEmpty)
     }
@@ -84,14 +85,14 @@ class WagerTest {
         wager.abandon()
         assertEquals(WagerOutcome.Lost, wager.outcome)
         assertEquals(1, inventory.count(grenade), "the stake was already taken out at the start")
-        assertEquals(1, wager.onEvent(GameEvent.RoundStarted(10, 10), inventory).count(grenade), "no late win")
+        assertEquals(1, wager.onEvent(GameEvent.RoundStarted(target, target), inventory).count(grenade), "no late win")
     }
 
     @Test
     fun earningBanksACopyExceptForTheStakedAbility() {
         val free = WagerGame()
         var inventory = free.start(AbilityInventory())
-        inventory = free.onEvent(GameEvent.AbilityEarned(grenade, 5), inventory)
+        inventory = free.onEvent(GameEvent.AbilityEarned(grenade, GrenadeBall.earnedAtRound), inventory)
         assertEquals(1, inventory.count(grenade))
         assertEquals(listOf(grenade), free.banked)
         free.abandon()
@@ -99,14 +100,25 @@ class WagerTest {
 
         val staked = WagerGame(GrenadeBall)
         inventory = staked.start(inventory)
-        inventory = staked.onEvent(GameEvent.AbilityEarned(grenade, 5), inventory)
+        inventory = staked.onEvent(GameEvent.AbilityEarned(grenade, GrenadeBall.earnedAtRound), inventory)
         assertEquals(0, inventory.count(grenade), "the wager decides the staked copy")
         assertEquals(emptyList(), staked.banked)
     }
 
-    /** Plays [seed] to game over with the real engine, settling a staked grenade as the app does. */
-    private fun playStaked(seed: Long, start: AbilityInventory): Triple<BrickGame, WagerGame, AbilityInventory> {
-        val wager = WagerGame(GrenadeBall)
+    /** An ability that does nothing but carry a wager target, so real games can be settled either way. */
+    private class TargetAbility(override val wagerTargetRound: Int) : Ability {
+        override val id = "target"
+        override val earnedAtRound = Int.MAX_VALUE
+        override fun onFirstHit(context: AbilityContext, column: Int, row: Int) = Unit
+    }
+
+    /** Plays [seed] to game over with the real engine, settling a wager on [stake] as the app does. */
+    private fun playStaked(
+        seed: Long,
+        stake: Ability = GrenadeBall,
+        start: AbilityInventory = AbilityInventory().add(stake.id, 3),
+    ): Triple<BrickGame, WagerGame, AbilityInventory> {
+        val wager = WagerGame(stake)
         var inventory = wager.start(start)
         val game = BrickGame(seed = seed, physics = GridPhysics, abilities = listOfNotNull(wager.stake))
         val angles = listOf(1.3f, 0.5f, 2.4f, 1.0f, 1.9f, 0.3f, 2.8f, 1.57f, 0.8f, 2.1f)
@@ -125,29 +137,32 @@ class WagerTest {
     }
 
     @Test
-    fun realGamesSettleByTheRoundReached() {
-        var wins = 0
-        var losses = 0
-        for (seed in 1L..40L) {
-            val (game, wager, inventory) = playStaked(seed, inventory(3))
-            assertTrue(game.activeAbilities.contains(GrenadeBall), "the staked grenade is active from round 1")
-            if (game.round >= GrenadeBall.wagerTargetRound) {
-                assertEquals(WagerOutcome.Won, wager.outcome, "seed $seed reached round ${game.round}")
-                assertEquals(4, inventory.count(grenade), "seed $seed")
-                wins++
-            } else {
-                assertEquals(WagerOutcome.Lost, wager.outcome, "seed $seed ended at round ${game.round}")
-                assertEquals(2, inventory.count(grenade), "seed $seed")
-                losses++
-            }
+    fun aRealGameWinsAtTheTargetRoundAndLosesShortOfIt() {
+        for (seed in 1L..10L) {
+            val lastRound = playStaked(seed, TargetAbility(Int.MAX_VALUE)).first.round
+            val reached = playStaked(seed, TargetAbility(lastRound))
+            assertTrue(reached.first.activeAbilities.any { it.id == "target" }, "the stake is active from round 1")
+            assertEquals(WagerOutcome.Won, reached.second.outcome, "seed $seed reached round $lastRound")
+            assertEquals(4, reached.third.count("target"), "seed $seed")
+
+            val short = playStaked(seed, TargetAbility(lastRound + 1))
+            assertEquals(WagerOutcome.Lost, short.second.outcome, "seed $seed ended at round $lastRound")
+            assertEquals(2, short.third.count("target"), "seed $seed")
         }
-        assertTrue(wins > 0 && losses > 0, "both paths should come up: $wins wins, $losses losses")
+    }
+
+    @Test
+    fun aRealStakedGrenadeSettlesByItsOwnTarget() {
+        val (game, wager, inventory) = playStaked(2026)
+        val won = game.round >= GrenadeBall.wagerTargetRound
+        assertEquals(if (won) WagerOutcome.Won else WagerOutcome.Lost, wager.outcome)
+        assertEquals(if (won) 4 else 2, inventory.count(grenade))
     }
 
     @Test
     fun theSameSeedAndShotsSettleTheSameWay() {
-        val first = playStaked(77, inventory(1))
-        val second = playStaked(77, inventory(1))
+        val first = playStaked(77)
+        val second = playStaked(77)
         assertEquals(first.first.round, second.first.round)
         assertEquals(first.second.outcome, second.second.outcome)
         assertEquals(first.third, second.third)
