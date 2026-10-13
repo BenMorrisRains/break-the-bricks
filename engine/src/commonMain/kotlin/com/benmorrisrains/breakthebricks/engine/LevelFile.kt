@@ -11,6 +11,7 @@ package com.benmorrisrains.breakthebricks.engine
  * goal 6                # rounds to survive
  * bricks 1 2            # bricks per new row, min and max
  * stars 15 25           # points for 2 and 3 stars (passing earns 1)
+ * ahead 2               # optional: new rows are worth what they'd be 2 rounds later
  * row . . . 1 . . .     # optional starting bricks, top row first, one value or . per column
  * ```
  */
@@ -58,6 +59,7 @@ object LevelFile {
                     if (two < 1 || three < two) fail("stars must be 0 < two <= three")
                     two to three
                 }
+                "ahead" -> current.ahead = ints(1).single().toInt().also { if (it < 0) fail("ahead can't be negative") }
                 "row" -> {
                     val cells = rest.split(WHITESPACE).filter { it.isNotEmpty() }
                     if (cells.size != columns) fail("a row has $columns cells, found ${cells.size}")
@@ -80,6 +82,7 @@ object LevelFile {
         var goal: Int? = null
         var bricks: Pair<Int, Int>? = null
         var stars: Pair<Long, Long>? = null
+        var ahead = 0
         val layout = mutableListOf<List<Long?>>()
 
         fun build(): Level {
@@ -98,6 +101,7 @@ object LevelFile {
                 twoStarPoints = two,
                 threeStarPoints = three,
                 layout = layout.toList(),
+                valuesAhead = ahead,
             )
         }
     }

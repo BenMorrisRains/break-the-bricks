@@ -18,8 +18,28 @@ class FreeLevelsTest {
         val levels = FreeLevels.all
         assertTrue(levels.zipWithNext().all { (a, b) -> b.goalRounds >= a.goalRounds })
         assertTrue(levels.zipWithNext().all { (a, b) -> b.maxBricksPerRow >= a.maxBricksPerRow })
-        assertTrue(levels.first().maxBricksPerRow <= 2)
-        assertTrue(levels.first().layout.isEmpty())
+        assertTrue(levels.first().maxBricksPerRow <= 3)
+        assertEquals(0, levels.first().valuesAhead)
+    }
+
+    /**
+     * Ben's playtest (2026-10-13): the first levels were too easy; aiming at random passed them
+     * every time. Every level now starts with bricks low enough to need real aim, so a random
+     * aimer fails a fair share of attempts, and fails more often by level 10.
+     */
+    @Test
+    fun randomAimingFailsEveryLevelOften() {
+        val passRates = FreeLevels.all.map { level ->
+            val random = SeededRandom(level.seed * 31)
+            val passes = (1..RANDOM_TRIALS).count {
+                val shots = List(level.goalRounds) { 0.3f + random.nextFloat() * 2.54f }
+                LevelBot.replay(level, shots).phase == RoundPhase.LevelComplete
+            }
+            passes.toDouble() / RANDOM_TRIALS
+        }
+        assertTrue(passRates.all { it <= 0.8 }, "random aim passes too often: $passRates")
+        assertTrue(passRates.last() <= 0.2, "level 10 should be hard without aim: $passRates")
+        assertTrue(passRates.last() < passRates.first(), "level 10 should be harder than level 1: $passRates")
     }
 
     @Test
@@ -47,5 +67,9 @@ class FreeLevelsTest {
             assertEquals(game.phase, replay.phase)
         }
         assertTrue(problems.isEmpty(), problems.joinToString("\n"))
+    }
+
+    private companion object {
+        const val RANDOM_TRIALS = 40
     }
 }

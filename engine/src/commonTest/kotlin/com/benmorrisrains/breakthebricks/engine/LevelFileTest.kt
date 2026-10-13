@@ -21,6 +21,7 @@ class LevelFileTest {
         goal 9
         bricks 2 4
         stars 40 60
+        ahead 3
         row 1 . . 12 . . 1
         row . 2 . . . 2 .
     """.trimIndent()
@@ -37,6 +38,8 @@ class LevelFileTest {
         assertEquals(4, second.maxBricksPerRow)
         assertEquals(40L, second.twoStarPoints)
         assertEquals(60L, second.threeStarPoints)
+        assertEquals(3, second.valuesAhead)
+        assertEquals(0, first.valuesAhead)
         assertEquals(
             listOf(listOf(1L, null, null, 12L, null, null, 1L), listOf(null, 2L, null, null, null, 2L, null)),
             second.layout,
@@ -61,6 +64,7 @@ class LevelFileTest {
         assertEquals(7, lineOf(good + "bricks 3 2"))
         assertEquals(7, lineOf(good + "bricks 1 8"))
         assertEquals(7, lineOf(good + "stars 9 5"))
+        assertEquals(7, lineOf(good + "ahead -1"))
         assertEquals(1, lineOf("level 1\nname A\nseed 1\nbricks 1 2\nstars 5 9\n"))
     }
 

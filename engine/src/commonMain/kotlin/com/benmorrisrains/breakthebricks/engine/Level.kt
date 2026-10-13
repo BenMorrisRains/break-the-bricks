@@ -19,17 +19,24 @@ data class Level(
     val threeStarPoints: Long,
     /** Bricks on the board before round 1, top row first; each row has [GameConfig.columns] cells. */
     val layout: List<List<Long?>> = emptyList(),
+    /** New rows are worth what they would be this many rounds later, for tougher rows sooner. */
+    val valuesAhead: Int = 0,
 ) {
     init {
         require(number >= 1) { "level numbers start at 1" }
         require(goalRounds >= 1) { "level $number: goal must be at least 1 round" }
+        require(valuesAhead >= 0) { "level $number: ahead can't be negative" }
         require(twoStarPoints in 1..threeStarPoints) { "level $number: star points must be 0 < two <= three" }
         require(layout.all { row -> row.all { it == null || it >= 1 } }) { "level $number: brick values must be at least 1" }
     }
 
     /** The game settings for this level on top of [base]. */
     fun config(base: GameConfig = GameConfig()): GameConfig =
-        base.copy(minBricksPerRow = minBricksPerRow, maxBricksPerRow = maxBricksPerRow)
+        base.copy(
+            minBricksPerRow = minBricksPerRow,
+            maxBricksPerRow = maxBricksPerRow,
+            rowValues = base.rowValues.startingAhead(valuesAhead),
+        )
 
     /** A new attempt at this level. Abilities are earned as in any game. */
     fun newGame(
