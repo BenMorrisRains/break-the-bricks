@@ -22,7 +22,7 @@ class GameShellTest {
         session = GameSession(
             services,
             newSeed = { seed++ },
-            newEngine = { GameSessionTest.FakeEngine().also { engines += it } },
+            newEngine = { _, _ -> GameSessionTest.FakeEngine().also { engines += it } },
             newLevelEngine = { GameSessionTest.FakeEngine().also { engines += it } },
         ),
         settings = GameSettings(services),

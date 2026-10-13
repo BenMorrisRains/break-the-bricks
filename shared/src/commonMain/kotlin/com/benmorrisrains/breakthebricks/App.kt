@@ -23,10 +23,13 @@ import com.benmorrisrains.breakthebricks.ui.PauseMenu
 import com.benmorrisrains.breakthebricks.ui.ResultsScreen
 import com.benmorrisrains.breakthebricks.ui.Screen
 import com.benmorrisrains.breakthebricks.ui.SettingsScreen
+import com.benmorrisrains.breakthebricks.ui.WagerScreen
+import com.benmorrisrains.breakthebricks.ui.quitWarning
 
 /**
- * Root composable for every platform: home, level select, the game with its pause menu, results
- * and settings, with sound, haptics, saved settings, level progress and best scores from [services].
+ * Root composable for every platform: home, level select, the wager screen, the game with its
+ * pause menu, results and settings, with sound, haptics, saved settings, level progress, the
+ * ability inventory and best scores from [services].
  */
 @Composable
 fun App(services: PlatformServices = remember { PlatformServices() }) {
@@ -51,6 +54,13 @@ fun App(services: PlatformServices = remember { PlatformServices() }) {
                 onBack = shell::goHome,
                 modifier = content,
             )
+            Screen.Wager -> WagerScreen(
+                stakeable = shell.session.bank.stakeable,
+                inventory = shell.session.bank.inventory,
+                onStake = shell::stake,
+                onBack = shell::goHome,
+                modifier = content,
+            )
             Screen.Game -> {
                 val session = shell.session
                 GameScreen(
@@ -71,6 +81,7 @@ fun App(services: PlatformServices = remember { PlatformServices() }) {
                         onSettings = shell::openSettings,
                         onHome = shell::goHome,
                         modifier = Modifier.fillMaxSize(),
+                        warning = quitWarning(session.wager.stake, session.wager.outcome),
                     )
                 }
             }

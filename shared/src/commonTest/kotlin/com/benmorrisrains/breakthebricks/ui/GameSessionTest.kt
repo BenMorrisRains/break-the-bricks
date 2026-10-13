@@ -60,7 +60,7 @@ class GameSessionTest {
     private fun session(engines: MutableList<FakeEngine>) = GameSession(
         services,
         newSeed = { nextSeed++ },
-        newEngine = { seed -> seeds += seed; FakeEngine().also { engines += it } },
+        newEngine = { seed, _ -> seeds += seed; FakeEngine().also { engines += it } },
     )
 
     @Test
@@ -146,7 +146,7 @@ class GameSessionTest {
         val session = GameSession(
             services,
             newSeed = { nextSeed++ },
-            newEngine = { FakeEngine().also { engines += it } },
+            newEngine = { _, _ -> FakeEngine().also { engines += it } },
             newLevelEngine = { level -> levelsPlayed += level.number; FakeEngine().also { engines += it } },
         )
         store.putLong(GameSession.BEST_POINTS_KEY, 500)
@@ -178,7 +178,7 @@ class GameSessionTest {
     @Test
     fun aFailedLevelEarnsNoStars() {
         val engines = mutableListOf<FakeEngine>()
-        val session = GameSession(services, newEngine = { FakeEngine() }, newLevelEngine = { FakeEngine().also { engines += it } })
+        val session = GameSession(services, newEngine = { _, _ -> FakeEngine() }, newLevelEngine = { FakeEngine().also { engines += it } })
         session.newGame(FreeLevels[1])
         engines.last().apply { points = 999; phase = RoundPhase.GameOver }
         session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 3, points = 999)))

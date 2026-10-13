@@ -13,6 +13,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.benmorrisrains.breakthebricks.engine.Ability
+import com.benmorrisrains.breakthebricks.engine.AbilityInventory
 import com.benmorrisrains.breakthebricks.platform.GameSettings
 import com.benmorrisrains.breakthebricks.platform.Setting
 
@@ -48,6 +50,7 @@ fun PauseMenu(
     onSettings: () -> Unit,
     onHome: () -> Unit,
     modifier: Modifier = Modifier,
+    warning: String? = null,
 ) {
     val blocker = remember { MutableInteractionSource() }
     MenuColumn(
@@ -56,6 +59,7 @@ fun PauseMenu(
             .clickable(interactionSource = blocker, indication = null, onClick = {}),
     ) {
         MenuTitle("PAUSED")
+        if (warning != null) MenuLabel(warning, NeonPalette.Orange)
         NeonButton("RESUME", onResume, color = NeonPalette.Lime)
         NeonButton("RESTART", onRestart, color = NeonPalette.Orange)
         NeonButton("SETTINGS", onSettings, color = NeonPalette.Purple)
@@ -92,6 +96,9 @@ fun ResultsScreen(
         MenuLabel("POINTS", NeonPalette.Purple)
         if (result.isNewBest) MenuLabel("NEW BEST!", NeonPalette.Yellow, 20.sp)
         MenuLabel(roundLabel(result.round, level?.goalRounds), NeonPalette.Cyan, 18.sp)
+        for (line in wagerLines(result)) {
+            MenuLabel(line.text, if (line.won) NeonPalette.Lime else NeonPalette.Orange, 16.sp)
+        }
         MenuLabel("BEST ${formatPoints(result.bestPoints)}")
         RankPanel(rank)
         Spacer(Modifier.height(16.dp))
@@ -99,6 +106,32 @@ fun ResultsScreen(
         NeonButton(if (level == null) "PLAY AGAIN" else "RETRY", onPlayAgain, color = if (onNextLevel == null) NeonPalette.Lime else NeonPalette.Orange)
         if (onLevels != null) NeonButton("LEVELS", onLevels, color = NeonPalette.Yellow)
         NeonButton("HOME", onHome, color = NeonPalette.Cyan)
+    }
+}
+
+/**
+ * Before a free-play game once the first one is played: each ability the player holds, with its
+ * count and the round to reach. Tapping one stakes a copy and starts the game with it active.
+ * Card animations come with the ability showcase (T11).
+ */
+@Composable
+fun WagerScreen(
+    stakeable: List<Ability>,
+    inventory: AbilityInventory,
+    onStake: (Ability) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    MenuColumn(modifier) {
+        MenuTitle("WAGER", NeonPalette.Yellow)
+        MenuLabel("STAKE AN ABILITY TO PLAY", NeonPalette.Ink)
+        for (ability in stakeable) {
+            NeonButton(stakeCardText(ability, inventory.count(ability.id)), { onStake(ability) }, color = NeonPalette.Lime)
+            MenuLabel(stakeGoalText(ability), NeonPalette.Cyan, 12.sp)
+        }
+        MenuLabel("LOSE AND THE STAKED COPY IS GONE")
+        Spacer(Modifier.height(8.dp))
+        NeonButton("BACK", onBack, color = NeonPalette.Cyan)
     }
 }
 

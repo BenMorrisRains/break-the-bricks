@@ -3,6 +3,7 @@ package com.benmorrisrains.breakthebricks.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.benmorrisrains.breakthebricks.engine.Ability
 import com.benmorrisrains.breakthebricks.engine.GameEvent
 import com.benmorrisrains.breakthebricks.engine.Level
 import com.benmorrisrains.breakthebricks.platform.GameSettings
@@ -11,6 +12,8 @@ import com.benmorrisrains.breakthebricks.platform.GameSettings
 sealed interface Screen {
     data object Home : Screen
     data object Levels : Screen
+    /** Picking the ability to stake before a free-play game. */
+    data object Wager : Screen
     data object Game : Screen
     data class Results(val result: GameResult) : Screen
     /** Settings, and the screen to go back to when they close. */
@@ -37,10 +40,27 @@ class GameShell(
         private set
 
     /** Starts a new game of the same kind as the last one (that level, or free play). Play again and Restart. */
-    fun play() = start(session.level)
+    fun play() {
+        val level = session.level
+        if (level == null) playFreePlay() else start(level)
+    }
 
-    /** Home's Play: an endless game on a fresh seed. */
-    fun playFreePlay() = start(null)
+    /**
+     * Home's Play: an endless game on a fresh seed. When the game needs a stake, the wager
+     * screen comes first; any game still running is quit, which loses its open wager.
+     */
+    fun playFreePlay() {
+        if (!session.bank.stakeRequired) return start(null)
+        session.quit()
+        paused = false
+        screen = Screen.Wager
+    }
+
+    /** The wager screen's pick: stakes one copy of [ability] and starts free play with it active. */
+    fun stake(ability: Ability) {
+        if (screen != Screen.Wager || ability !in session.bank.stakeable) return
+        start(null, ability)
+    }
 
     fun playLevel(level: Level) {
         if (session.progress.isUnlocked(level.number)) start(level)
@@ -61,12 +81,13 @@ class GameShell(
     }
 
     fun openLevels() {
+        session.quit()
         paused = false
         screen = Screen.Levels
     }
 
-    private fun start(level: Level?) {
-        session.newGame(level)
+    private fun start(level: Level?, stake: Ability? = null) {
+        session.newGame(level, stake)
         paused = false
         screen = Screen.Game
     }
@@ -79,8 +100,9 @@ class GameShell(
         paused = false
     }
 
-    /** Leaves whatever is showing for the home screen; a game in progress is dropped. */
+    /** Leaves whatever is showing for the home screen; a game in progress is dropped and its wager lost. */
     fun goHome() {
+        session.quit()
         paused = false
         screen = Screen.Home
     }
