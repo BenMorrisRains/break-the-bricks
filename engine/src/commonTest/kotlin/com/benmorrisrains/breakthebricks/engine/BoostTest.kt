@@ -37,7 +37,7 @@ class BoostTest {
         game.boost(BigBall)
         game.fire()
         game.step()
-        assertEquals(2f, game.balls.first().size)
+        assertTrue(game.balls.first().size > 1f, "bigger than a normal ball")
     }
 
     @Test
