@@ -12,11 +12,13 @@ package com.benmorrisrains.breakthebricks.engine
  * bricks 1 2            # bricks per new row, min and max
  * stars 9 7             # clear within 9 rounds for 2 stars, within 7 for 3 (any clear earns 1)
  * ahead 2               # optional: new rows are worth what they'd be 2 rounds later
+ * power drill           # optional: this power-up is lent for the level, from the first shot
  * row . . . 1 . . .     # optional starting bricks, top row first, one value or . per column
  * ```
  */
 object LevelFile {
-    fun parse(text: String, columns: Int = GameConfig().columns): List<Level> {
+    /** Parses every level in [text]; the first must be numbered [first] and the rest follow in order. */
+    fun parse(text: String, columns: Int = GameConfig().columns, first: Int = 1): List<Level> {
         val levels = mutableListOf<Level>()
         var block: Block? = null
 
@@ -42,7 +44,8 @@ object LevelFile {
             if (key == "level") {
                 finish()
                 val number = ints(1).single().toInt()
-                if (number != levels.size + 1) fail("expected level ${levels.size + 1}, found level $number")
+                val expected = first + levels.size
+                if (number != expected) fail("expected level $expected, found level $number")
                 block = Block(number, lineNumber)
                 return@forEachIndexed
             }
@@ -60,6 +63,8 @@ object LevelFile {
                     two.toInt() to three.toInt()
                 }
                 "ahead" -> current.ahead = ints(1).single().toInt().also { if (it < 0) fail("ahead can't be negative") }
+                "power" -> current.power = Abilities.earnable.firstOrNull { it.id == rest }
+                    ?: fail("unknown power-up '$rest'; one of ${Abilities.earnable.joinToString { it.id }}")
                 "row" -> {
                     val cells = rest.split(WHITESPACE).filter { it.isNotEmpty() }
                     if (cells.size != columns) fail("a row has $columns cells, found ${cells.size}")
@@ -83,6 +88,7 @@ object LevelFile {
         var bricks: Pair<Int, Int>? = null
         var stars: Pair<Int, Int>? = null
         var ahead = 0
+        var power: Ability? = null
         val layout = mutableListOf<List<Long?>>()
 
         fun build(): Level {
@@ -102,6 +108,7 @@ object LevelFile {
                 threeStarRounds = three,
                 layout = layout.toList(),
                 valuesAhead = ahead,
+                power = power,
             )
         }
     }

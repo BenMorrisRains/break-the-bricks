@@ -5,6 +5,7 @@ package com.benmorrisrains.breakthebricks.engine
  * same starting bricks and the same new rows. New rows stop after [rowCount] rounds, and the
  * level is passed only by breaking every brick (Ben, 2026-10-13); clearing it in fewer rounds
  * earns the 2nd and 3rd star. Levels keep their own layouts and are not scaled by player rank.
+ * Levels 1 to [FreeLevels.COUNT] are free; the rest are [PaidLevels].
  */
 data class Level(
     val number: Int,
@@ -22,6 +23,11 @@ data class Level(
     val layout: List<List<Long?>> = emptyList(),
     /** New rows are worth what they would be this many rounds later, for tougher rows sooner. */
     val valuesAhead: Int = 0,
+    /**
+     * A power-up this level shows off: it is active from the first shot, for this level only, on
+     * top of any the game earns. It is lent, not earned, so it never reaches the inventory.
+     */
+    val power: Ability? = null,
 ) {
     init {
         require(number >= 1) { "level numbers start at 1" }
@@ -39,7 +45,10 @@ data class Level(
             rowValues = base.rowValues.startingAhead(valuesAhead),
         )
 
-    /** A new attempt at this level. Abilities are earned as in any game. */
+    /** Paid levels come after the free ones and open only once bought or unlocked by ads. */
+    val isPaid: Boolean get() = number > FreeLevels.COUNT
+
+    /** A new attempt at this level. Abilities are earned as in any game; [power] is active from the start. */
     fun newGame(
         physics: BallPhysics,
         abilities: List<Ability> = emptyList(),
@@ -49,7 +58,7 @@ data class Level(
         config = config(base),
         seed = seed,
         physics = physics,
-        abilities = abilities,
+        abilities = abilities + listOfNotNull(power).filter { lent -> abilities.none { it.id == lent.id } },
         earnable = earnable,
         layout = layout,
         levelRows = rowCount,

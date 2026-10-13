@@ -2,7 +2,7 @@ package com.benmorrisrains.breakthebricks.engine
 
 /**
  * Levels 1 to 10, free for everyone. Written in the [LevelFile] format so the same text could
- * ship as a data file; levels 11 and up are paid and come later. Star rounds are tuned against
+ * ship as a data file; levels 11 and up are [PaidLevels]. Star rounds are tuned against
  * a simple test bot (see FreeLevelsTest): it clears every level, and 3 stars needs a clear at
  * least as fast as its. Random aiming fails every level often (Ben found the first version too easy).
  */
