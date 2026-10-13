@@ -15,7 +15,7 @@ fun createPlatformServices(): PlatformServices = PlatformServices(
 
 /**
  * Sound effects through javax.sound clips, a few per effect so quick hits overlap, and the music
- * as one looping clip. A machine with no audio device (such as CI) gets no clips and stays
+ * as a looping clip per track. A machine with no audio device (such as CI) gets no clips and stays
  * silent instead of failing.
  */
 internal class ClipAudio : ToggleableAudio() {
@@ -25,8 +25,9 @@ internal class ClipAudio : ToggleableAudio() {
     }
     private val next = mutableMapOf<SoundEffect, Int>()
 
-    // Built the first time music is wanted, so starting the app doesn't wait on it.
-    private val music: Clip? by lazy { openClip(ChipMusic.wav()) }
+    // Each track's clip is built the first time it is wanted, so starting the app doesn't wait on it.
+    private val tracks = mutableMapOf<Int, Clip?>()
+    private val music: Clip? get() = tracks.getOrPut(musicTrack) { openClip(ChipMusic.wav(musicTrack)) }
 
     override fun playEffect(effect: SoundEffect) {
         val voices = clips.getValue(effect).ifEmpty { return }
@@ -45,6 +46,10 @@ internal class ClipAudio : ToggleableAudio() {
 
     override fun pauseMusic() {
         music?.stop()
+    }
+
+    override fun rewindMusic() {
+        tracks[musicTrack]?.framePosition = 0
     }
 
     private fun openClip(wav: ByteArray): Clip? = try {

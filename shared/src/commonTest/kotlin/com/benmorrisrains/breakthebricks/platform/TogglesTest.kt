@@ -16,6 +16,9 @@ class TogglesTest {
         override fun pauseMusic() {
             music += "pause"
         }
+        override fun rewindMusic() {
+            music += "rewind $musicTrack"
+        }
     }
 
     private class RecordingHaptics : ToggleableHaptics() {
@@ -71,6 +74,18 @@ class TogglesTest {
         audio.setAppActive(true)
         assertEquals(true, audio.musicOn)
         assertEquals(listOf("resume", "pause", "resume"), audio.music)
+    }
+
+    @Test
+    fun aNewTrackStartsFromTheTopAndPlaysOnIfMusicWasOn() {
+        val audio = RecordingAudio()
+        audio.setMusicTrack(2)
+        assertEquals(listOf("rewind 2"), audio.music, "silent: only rewound")
+        audio.setMusicPlaying(true)
+        audio.setMusicTrack(3)
+        audio.setMusicTrack(3)
+        assertEquals(listOf("rewind 2", "resume", "pause", "rewind 3", "resume"), audio.music)
+        assertEquals(3, audio.musicTrack)
     }
 
     @Test

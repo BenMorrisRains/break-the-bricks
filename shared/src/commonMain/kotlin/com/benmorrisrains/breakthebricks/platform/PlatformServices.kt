@@ -10,6 +10,12 @@ interface AudioPlayer {
      */
     fun setMusicPlaying(playing: Boolean)
 
+    /**
+     * Picks which music track plays, by its index (0 until `ChipMusic.tracks.size`). A new
+     * track starts from its beginning; picking the current one changes nothing.
+     */
+    fun setMusicTrack(track: Int)
+
     fun setMusicEnabled(enabled: Boolean)
     fun setEffectsEnabled(enabled: Boolean)
 }
@@ -46,6 +52,7 @@ class PlatformServices(
 object NoOpAudio : AudioPlayer {
     override fun play(effect: SoundEffect) = Unit
     override fun setMusicPlaying(playing: Boolean) = Unit
+    override fun setMusicTrack(track: Int) = Unit
     override fun setMusicEnabled(enabled: Boolean) = Unit
     override fun setEffectsEnabled(enabled: Boolean) = Unit
 }
@@ -79,6 +86,10 @@ internal abstract class ToggleableAudio : AudioPlayer {
     var musicOn = false
         private set
 
+    /** The track that plays, or carries on, when the music is on. */
+    var musicTrack = 0
+        private set
+
     private var musicWanted = false
     private var appActive = true
 
@@ -93,9 +104,20 @@ internal abstract class ToggleableAudio : AudioPlayer {
 
     protected abstract fun pauseMusic()
 
+    /** Sends [musicTrack], which just changed, back to its beginning. Called while it is paused. */
+    protected abstract fun rewindMusic()
+
     final override fun setMusicPlaying(playing: Boolean) {
         musicWanted = playing
         updateMusic()
+    }
+
+    final override fun setMusicTrack(track: Int) {
+        if (track == musicTrack) return
+        if (musicOn) pauseMusic()
+        musicTrack = track
+        rewindMusic()
+        if (musicOn) resumeMusic()
     }
 
     final override fun setMusicEnabled(enabled: Boolean) {

@@ -23,6 +23,7 @@ class GameShellTest {
         var playing = false
         override fun play(effect: SoundEffect) = Unit
         override fun setMusicPlaying(playing: Boolean) { this.playing = playing }
+        override fun setMusicTrack(track: Int) = Unit
         override fun setMusicEnabled(enabled: Boolean) = Unit
         override fun setEffectsEnabled(enabled: Boolean) = Unit
     }
