@@ -6,8 +6,15 @@ import kotlin.test.assertEquals
 class TogglesTest {
     private class RecordingAudio : ToggleableAudio() {
         val played = mutableListOf<SoundEffect>()
+        val music = mutableListOf<String>()
         override fun playEffect(effect: SoundEffect) {
             played += effect
+        }
+        override fun resumeMusic() {
+            music += "resume"
+        }
+        override fun pauseMusic() {
+            music += "pause"
         }
     }
 
@@ -36,6 +43,42 @@ class TogglesTest {
         audio.play(SoundEffect.WallBounce)
         assertEquals(listOf(SoundEffect.WallBounce), audio.played)
         assertEquals(false, audio.musicEnabled)
+    }
+
+    @Test
+    fun musicPlaysOnlyWhenWantedAndSwitchedOn() {
+        val audio = RecordingAudio()
+        assertEquals(emptyList(), audio.music, "silent until a game wants it")
+        audio.setMusicPlaying(true)
+        assertEquals(listOf("resume"), audio.music)
+        audio.setMusicPlaying(true)
+        assertEquals(listOf("resume"), audio.music, "asking again changes nothing")
+        audio.setMusicEnabled(false)
+        audio.setMusicPlaying(false)
+        audio.setMusicPlaying(true)
+        assertEquals(listOf("resume", "pause"), audio.music, "the toggle keeps it off")
+        audio.setMusicEnabled(true)
+        audio.setMusicPlaying(false)
+        assertEquals(listOf("resume", "pause", "resume", "pause"), audio.music)
+    }
+
+    @Test
+    fun musicPausesInTheBackgroundAndComesBack() {
+        val audio = RecordingAudio()
+        audio.setMusicPlaying(true)
+        audio.setAppActive(false)
+        assertEquals(false, audio.musicOn)
+        audio.setAppActive(true)
+        assertEquals(true, audio.musicOn)
+        assertEquals(listOf("resume", "pause", "resume"), audio.music)
+    }
+
+    @Test
+    fun effectsToggleDoesNotStopMusic() {
+        val audio = RecordingAudio()
+        audio.setMusicPlaying(true)
+        audio.setEffectsEnabled(false)
+        assertEquals(true, audio.musicOn)
     }
 
     @Test

@@ -63,46 +63,61 @@ class GameShell(
     fun openLevels() {
         paused = false
         screen = Screen.Levels
+        syncMusic()
     }
 
     private fun start(level: Level?) {
         session.newGame(level)
         paused = false
         screen = Screen.Game
+        syncMusic()
     }
 
     fun pause() {
         if (screen == Screen.Game && !session.engine.phase.isFinished) paused = true
+        syncMusic()
     }
 
     fun resume() {
         paused = false
+        syncMusic()
     }
 
     /** Leaves whatever is showing for the home screen; a game in progress is dropped. */
     fun goHome() {
         paused = false
         screen = Screen.Home
+        syncMusic()
     }
 
     fun openSettings() {
         if (screen !is Screen.Settings) screen = Screen.Settings(returnTo = screen)
+        syncMusic()
     }
 
     fun closeSettings() {
         (screen as? Screen.Settings)?.let { screen = it.returnTo }
+        syncMusic()
     }
 
     /** Called every display frame the game runs; moves on to the results once they are due. */
     fun onFrame(elapsedSeconds: Float, events: List<GameEvent>) {
         session.onFrame(elapsedSeconds, events)
         if (session.resultsDue) showResults()
+        syncMusic()
     }
 
     /** A tap on the final board skips straight to the results, after a short guard. */
     fun onGameOverTap() {
         if (session.canSkipToResults) showResults()
     }
+
+    /** True while a game is being played: on screen, not paused and not over. */
+    val wantsMusic: Boolean
+        get() = screen == Screen.Game && !paused && !session.engine.phase.isFinished
+
+    /** The music loop plays during a game and stops for menus, the pause menu and the end. */
+    private fun syncMusic() = session.setMusicPlaying(wantsMusic)
 
     private fun showResults() {
         if (screen != Screen.Game) return
