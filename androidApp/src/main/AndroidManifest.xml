@@ -10,6 +10,10 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
+        <!-- AdMob app ID, from the adMobAndroidAppId Gradle property (Google's test app by default). -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="${adMobAppId}" />
         <activity
             android:exported="true"
             android:screenOrientation="portrait"

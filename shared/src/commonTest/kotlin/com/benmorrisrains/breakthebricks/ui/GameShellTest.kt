@@ -187,7 +187,7 @@ class GameShellTest {
     }
 
     @Test
-    fun passingLevelTenOffersNoNextLevelWhileThePaidLevelsAreLocked() {
+    fun passingLevelTenLeadsToThePaywallWhileThePaidLevelsAreLocked() {
         for (number in 1..9) shell.session.progress.record(FreeLevels[number], passed = true, round = 1, points = 1)
         shell.playLevel(FreeLevels[10])
         assertEquals(FreeLevels[10], shell.session.level)
@@ -195,11 +195,10 @@ class GameShellTest {
         shell.onFrame(0.016f, listOf(GameEvent.LevelCompleted(round = 5, points = 50)))
         shell.onFrame(GameSession.RESULTS_DELAY_SECONDS, emptyList())
         assertIs<Screen.Results>(shell.screen)
-        assertNull(shell.nextLevel(), "level 11 is paid")
+        assertEquals(PaidLevels[11], shell.nextLevel())
         shell.playNextLevel()
-        assertIs<Screen.Results>(shell.screen)
-        shell.playLevel(PaidLevels[11])
-        assertIs<Screen.Results>(shell.screen, "a locked paid level doesn't start")
+        assertEquals(Screen.Paywall(PaidLevels[11]), shell.screen, "a locked paid level shows the paywall instead")
+        assertEquals(FreeLevels[10], shell.session.level, "nothing started")
     }
 
     @Test
