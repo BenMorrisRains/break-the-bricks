@@ -189,8 +189,9 @@ private fun DrawScope.drawAimLine(engine: GameEngine, layout: FieldLayout) {
 }
 
 /**
- * Balls are white; while [grenadeArmed], the round's first ball is drawn as a hand grenade,
- * its fuse sparking by [effectsTime] once it flies.
+ * Balls are white, drawn at their own size (the big ball is twice as big); a drilling ball has a
+ * yellow ring. While [grenadeArmed], the round's first ball is drawn as a hand grenade, its fuse
+ * sparking by [effectsTime] once it flies.
  */
 private fun DrawScope.drawBalls(engine: GameEngine, layout: FieldLayout, grenadeArmed: Boolean, effectsTime: Float?) {
     val config = engine.config
@@ -198,8 +199,8 @@ private fun DrawScope.drawBalls(engine: GameEngine, layout: FieldLayout, grenade
     for (ball in engine.balls) {
         val isGrenade = ball === grenade
         when (ball.state) {
-            BallState.Flying -> drawBall(ball.x, ball.y, layout, config, trailOf = ball, isGrenade = isGrenade, sparkTime = effectsTime)
-            BallState.Landed -> drawBall(ball.x, ball.y, layout, config)
+            BallState.Flying -> drawBall(ball.x, ball.y, layout, config, trailOf = ball, isGrenade = isGrenade, sparkTime = effectsTime, size = ball.size, drilling = ball.pierce > 0)
+            BallState.Landed -> drawBall(ball.x, ball.y, layout, config, size = ball.size)
             BallState.Waiting -> Unit
         }
     }
@@ -218,8 +219,10 @@ private fun DrawScope.drawBall(
     trailOf: Ball? = null,
     isGrenade: Boolean = false,
     sparkTime: Float? = null,
+    size: Float = 1f,
+    drilling: Boolean = false,
 ) {
-    val r = config.ballRadius * layout.cell
+    val r = config.ballRadius * size * layout.cell
     val center = Offset(layout.toScreenX(x), layout.toScreenY(y))
     val color = if (isGrenade) NeonPalette.Orange else NeonPalette.Ink
     if (trailOf != null) {
@@ -239,6 +242,7 @@ private fun DrawScope.drawBall(
     } else {
         drawCircle(color.copy(alpha = 0.18f), radius = r * 2f, center = center)
         drawCircle(color, radius = r, center = center)
+        if (drilling) drawCircle(NeonPalette.Yellow, radius = r * 1.5f, center = center, style = Stroke(width = maxOf(1.5f, r * 0.35f)))
     }
 }
 
