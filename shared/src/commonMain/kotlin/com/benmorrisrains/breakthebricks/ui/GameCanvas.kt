@@ -82,7 +82,7 @@ fun GameCanvas(
 
 /**
  * Finger down or drag aims, lift fires; see [AimGesture] for the cancel rule. After a game over,
- * a press is a tap to play again instead.
+ * a press is a tap to move on to the results instead.
  */
 private suspend fun PointerInputScope.aimInput(
     engine: GameEngine,

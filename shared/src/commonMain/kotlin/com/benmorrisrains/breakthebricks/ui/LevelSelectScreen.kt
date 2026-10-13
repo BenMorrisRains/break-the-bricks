@@ -17,10 +17,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -30,14 +26,14 @@ import com.benmorrisrains.breakthebricks.engine.Level
 private const val TILES_PER_ROW = 2
 
 /**
- * The 10 free levels as neon tiles with their stars, plus free play (the endless game).
- * A locked level shows dim and can't be tapped until the one before it is passed.
+ * The 10 free levels as neon tiles with their stars, opened from home. A locked level shows
+ * dim and can't be tapped until the one before it is passed.
  */
 @Composable
 fun LevelSelectScreen(
     progress: LevelProgress,
     onLevel: (Level) -> Unit,
-    onFreePlay: () -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -57,7 +53,7 @@ fun LevelSelectScreen(
                 repeat(TILES_PER_ROW - row.size) { Box(Modifier.weight(1f)) }
             }
         }
-        NeonButton("FREE PLAY", NeonPalette.Purple, onFreePlay, Modifier.fillMaxWidth())
+        NeonButton("BACK", onBack, color = NeonPalette.Cyan)
     }
 }
 
@@ -90,24 +86,4 @@ private fun LevelTile(level: Level, progress: LevelProgress, onLevel: (Level) ->
     }
 }
 
-@Composable
-private fun NeonButton(text: String, color: Color, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
-        modifier
-            .border(2.dp, color, RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        BasicText(text, style = neonText(color, 18.sp))
-    }
-}
-
-private fun neonText(color: Color, size: TextUnit) = TextStyle(
-    color = color,
-    fontSize = size,
-    fontFamily = FontFamily.Monospace,
-    fontWeight = FontWeight.Bold,
-    textAlign = TextAlign.Center,
-    shadow = Shadow(color = color.copy(alpha = 0.6f), blurRadius = 12f),
-)
+private fun neonText(color: Color, size: TextUnit) = arcadeStyle(color, size, TextAlign.Center)

@@ -1,76 +1,93 @@
 package com.benmorrisrains.breakthebricks
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.benmorrisrains.breakthebricks.engine.GridPhysics
-import com.benmorrisrains.breakthebricks.engine.Level
+import com.benmorrisrains.breakthebricks.platform.GameSettings
 import com.benmorrisrains.breakthebricks.platform.PlatformServices
 import com.benmorrisrains.breakthebricks.ui.GameScreen
 import com.benmorrisrains.breakthebricks.ui.GameSession
-import com.benmorrisrains.breakthebricks.ui.LevelProgress
+import com.benmorrisrains.breakthebricks.ui.GameShell
+import com.benmorrisrains.breakthebricks.ui.HomeScreen
 import com.benmorrisrains.breakthebricks.ui.LevelSelectScreen
 import com.benmorrisrains.breakthebricks.ui.NeonPalette
-
-/** Which screen is up: the level list, or a game of one level or of free play (level = null). */
-private sealed interface Screen {
-    data object Levels : Screen
-    data class Playing(val level: Level?) : Screen
-}
+import com.benmorrisrains.breakthebricks.ui.PauseMenu
+import com.benmorrisrains.breakthebricks.ui.ResultsScreen
+import com.benmorrisrains.breakthebricks.ui.Screen
+import com.benmorrisrains.breakthebricks.ui.SettingsScreen
 
 /**
- * Root composable for every platform. Opens on level select; a level or free play runs the real
- * engine and physics with sound, haptics and saved results from [services]. Tap after a game
- * ends to go back to the levels.
+ * Root composable for every platform: home, level select, the game with its pause menu, results
+ * and settings, with sound, haptics, saved settings, level progress and best scores from [services].
  */
 @Composable
 fun App(services: PlatformServices = remember { PlatformServices() }) {
-    val progress = remember(services) { LevelProgress(services.store) }
-    var screen by remember { mutableStateOf<Screen>(Screen.Levels) }
-    val modifier = Modifier
+    val shell = remember(services) { GameShell(GameSession(services), GameSettings(services)) }
+    val content = Modifier
         .fillMaxSize()
-        .background(NeonPalette.Background)
         .safeDrawingPadding()
         .padding(horizontal = 12.dp, vertical = 8.dp)
-
-    when (val current = screen) {
-        Screen.Levels -> LevelSelectScreen(
-            progress = progress,
-            onLevel = { screen = Screen.Playing(it) },
-            onFreePlay = { screen = Screen.Playing(null) },
-            modifier = modifier,
-        )
-        is Screen.Playing -> {
-            val level = current.level
-            val session = remember(current) {
-                if (level == null) {
-                    GameSession(services)
-                } else {
-                    GameSession(
-                        services,
-                        newSeed = { level.seed },
-                        newEngine = { level.newGame(GridPhysics) },
-                        bestPointsKey = LevelProgress.bestPointsKey(level.number),
-                        onFinished = { passed, points -> progress.record(level, passed, points) },
+    Box(Modifier.fillMaxSize().background(NeonPalette.Background)) {
+        when (val screen = shell.screen) {
+            Screen.Home -> HomeScreen(
+                bestPoints = shell.session.bestPoints,
+                rank = shell.rank(),
+                onPlay = shell::playFreePlay,
+                onLevels = shell::openLevels,
+                onSettings = shell::openSettings,
+                modifier = content,
+            )
+            Screen.Levels -> LevelSelectScreen(
+                progress = shell.session.progress,
+                onLevel = shell::playLevel,
+                onBack = shell::goHome,
+                modifier = content,
+            )
+            Screen.Game -> {
+                val session = shell.session
+                GameScreen(
+                    engine = session.engine,
+                    bestPoints = session.bestPoints,
+                    onFrame = shell::onFrame,
+                    onFire = session::onFired,
+                    onGameOverTap = shell::onGameOverTap,
+                    paused = shell.paused,
+                    onPause = shell::pause,
+                    level = session.level,
+                    modifier = content,
+                )
+                if (shell.paused) {
+                    PauseMenu(
+                        onResume = shell::resume,
+                        onRestart = shell::play,
+                        onSettings = shell::openSettings,
+                        onHome = shell::goHome,
+                        modifier = Modifier.fillMaxSize(),
                     )
                 }
             }
-            GameScreen(
-                engine = session.engine,
-                bestPoints = session.bestPoints,
-                onFrame = session::onFrame,
-                onFire = session::onFired,
-                onGameOverTap = { if (session.canRestart) screen = Screen.Levels },
-                level = level,
-                modifier = modifier,
+            is Screen.Results -> ResultsScreen(
+                result = screen.result,
+                rank = shell.rank(),
+                onPlayAgain = shell::play,
+                onHome = shell::goHome,
+                // Level results carry more lines and buttons than a short phone screen holds.
+                modifier = content.verticalScroll(rememberScrollState()),
+                onNextLevel = if (shell.nextLevel() != null) shell::playNextLevel else null,
+                onLevels = if (screen.result.level != null) shell::openLevels else null,
+            )
+            is Screen.Settings -> SettingsScreen(
+                settings = shell.settings,
+                onBack = shell::closeSettings,
+                modifier = content,
             )
         }
     }
