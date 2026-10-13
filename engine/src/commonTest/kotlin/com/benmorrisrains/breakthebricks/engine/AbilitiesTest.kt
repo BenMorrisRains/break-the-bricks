@@ -131,6 +131,7 @@ class AbilitiesTest {
             damaged += column to row
         }
         override fun breakBrick(column: Int, row: Int) = Unit
+        override fun randomInt(bound: Int): Int = 0
         override fun splitFirstBall(extraBalls: Int, maxTurnRadians: Float) = Unit
     }
 

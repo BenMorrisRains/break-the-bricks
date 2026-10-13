@@ -38,6 +38,9 @@ interface AbilityContext {
     fun damage(column: Int, row: Int, hits: Long)
     fun breakBrick(column: Int, row: Int)
 
+    /** Seeded, uniform in [0, bound), from a stream that never changes the rows that come. */
+    fun randomInt(bound: Int): Int
+
     /**
      * Once its current step is done, adds [extraBalls] normal balls at the round's first ball and
      * sends all of them, the first ball too, off in seeded random directions up to
