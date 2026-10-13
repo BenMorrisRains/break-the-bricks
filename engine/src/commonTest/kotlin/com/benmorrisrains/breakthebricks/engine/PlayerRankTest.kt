@@ -9,18 +9,18 @@ class PlayerRankTest {
     fun newPlayersAreRankOne() {
         assertEquals(1, PlayerRank.Start.rank)
         assertEquals(0f, PlayerRank.Start.progress)
-        assertEquals(50, PlayerRank.Start.pointsForNextRank)
+        assertEquals(500, PlayerRank.Start.pointsForNextRank)
     }
 
     @Test
-    fun rankNToNPlusOneTakes50TimesNPoints() {
-        assertEquals(1, PlayerRank(49).rank)
-        assertEquals(2, PlayerRank(50).rank)
-        assertEquals(2, PlayerRank(149).rank)
-        assertEquals(3, PlayerRank(150).rank)
-        assertEquals(10, PlayerRank(2_749).rank)
-        assertEquals(11, PlayerRank(2_750).rank)
-        assertEquals(2_750, PlayerRank.pointsToReach(11))
+    fun rankNToNPlusOneTakes500TimesNPoints() {
+        assertEquals(1, PlayerRank(499).rank)
+        assertEquals(2, PlayerRank(500).rank)
+        assertEquals(2, PlayerRank(1_499).rank)
+        assertEquals(3, PlayerRank(1_500).rank)
+        assertEquals(10, PlayerRank(27_499).rank)
+        assertEquals(11, PlayerRank(27_500).rank)
+        assertEquals(27_500, PlayerRank.pointsToReach(11))
     }
 
     @Test
@@ -34,18 +34,18 @@ class PlayerRankTest {
 
     @Test
     fun progressCountsPointsTowardTheNextRank() {
-        val rank = PlayerRank(75) // rank 2 starts at 50, rank 3 at 150
+        val rank = PlayerRank(750) // rank 2 starts at 500, rank 3 at 1,500
         assertEquals(2, rank.rank)
-        assertEquals(25, rank.pointsIntoRank)
-        assertEquals(100, rank.pointsForNextRank)
+        assertEquals(250, rank.pointsIntoRank)
+        assertEquals(1_000, rank.pointsForNextRank)
         assertEquals(0.25f, rank.progress)
     }
 
     @Test
     fun addingPointsNeverLowersRank() {
-        val rank = PlayerRank(140)
-        assertEquals(PlayerRank(140), rank.adding(-30))
-        assertEquals(3, rank.adding(10).rank)
+        val rank = PlayerRank(1_400)
+        assertEquals(PlayerRank(1_400), rank.adding(-300))
+        assertEquals(3, rank.adding(100).rank)
         assertEquals(Long.MAX_VALUE, PlayerRank(Long.MAX_VALUE - 1).adding(5).totalPoints)
         assertEquals(PlayerRank.MAX_RANK, PlayerRank(Long.MAX_VALUE).rank)
         assertFailsWith<IllegalArgumentException> { PlayerRank(-1) }

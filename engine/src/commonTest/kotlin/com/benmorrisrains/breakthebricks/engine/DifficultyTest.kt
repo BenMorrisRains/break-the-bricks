@@ -20,32 +20,42 @@ class DifficultyTest {
     }
 
     @Test
-    fun startingRowsGrowEvery15RanksUpToFour() {
-        val rows = listOf(1, 14, 15, 29, 30, 45, 60, 500).map { Difficulty.forRank(it).startingRows }
-        assertEquals(listOf(1, 1, 2, 2, 3, 4, 4, 4), rows)
+    fun startingRowsGrowEvery25RanksUpToThree() {
+        val rows = listOf(1, 24, 25, 49, 50, 75, 500).map { Difficulty.forRank(it).startingRows }
+        assertEquals(listOf(1, 1, 2, 2, 3, 3, 3), rows)
     }
 
     @Test
-    fun bricksPerRowRiseWithRankUpToSix() {
+    fun bricksPerRowRiseWithRankUpToFive() {
         fun bounds(rank: Int) = Difficulty.forRank(rank).let { it.minBricksPerRow to it.maxBricksPerRow }
-        assertEquals(1 to 3, bounds(9))
-        assertEquals(1 to 4, bounds(10))
-        assertEquals(2 to 4, bounds(12))
-        assertEquals(2 to 5, bounds(20))
-        assertEquals(3 to 6, bounds(30))
-        assertEquals(5 to 6, bounds(50))
-        assertEquals(6 to 6, bounds(72))
-        assertEquals(6 to 6, bounds(1000))
+        assertEquals(1 to 3, bounds(19))
+        assertEquals(1 to 4, bounds(20))
+        assertEquals(2 to 4, bounds(30))
+        assertEquals(2 to 5, bounds(40))
+        assertEquals(3 to 5, bounds(60))
+        assertEquals(5 to 5, bounds(120))
+        assertEquals(5 to 5, bounds(1000))
     }
 
     @Test
-    fun rowValuesStartOneRoundAheadEvery5Ranks() {
+    fun rowValuesStartOneRoundAheadEvery10RanksUpToFive() {
         val eighths = RowValues.FibonacciEighths
-        assertEquals(eighths.valueFor(1), Difficulty.forRank(4).rowValues.valueFor(1))
-        assertEquals(eighths.valueFor(2), Difficulty.forRank(5).rowValues.valueFor(1))
-        // The plan doc's example: a rank 50 first row is worth what round 11 is worth at rank 1.
-        assertEquals(eighths.valueFor(11), Difficulty.forRank(50).rowValues.valueFor(1))
-        assertEquals(eighths.valueFor(15), Difficulty.forRank(50).rowValues.valueFor(5))
+        assertEquals(eighths.valueFor(1), Difficulty.forRank(9).rowValues.valueFor(1))
+        assertEquals(eighths.valueFor(2), Difficulty.forRank(10).rowValues.valueFor(1))
+        assertEquals(eighths.valueFor(6), Difficulty.forRank(50).rowValues.valueFor(1))
+        assertEquals(eighths.valueFor(10), Difficulty.forRank(50).rowValues.valueFor(5))
+        assertEquals(eighths.valueFor(6), Difficulty.forRank(500).rowValues.valueFor(1), "capped at 5 rounds ahead")
+    }
+
+    @Test
+    fun difficultyStopsRisingByRank60() {
+        val top = Difficulty.forRank(60)
+        for (rank in listOf(61, 100, 1000)) {
+            val config = Difficulty.forRank(rank)
+            assertEquals(top.startingRows, config.startingRows)
+            assertEquals(top.maxBricksPerRow, config.maxBricksPerRow)
+            assertEquals(top.rowValues.valueFor(1), config.rowValues.valueFor(1))
+        }
     }
 
     @Test
@@ -59,12 +69,12 @@ class DifficultyTest {
         val rank1 = BrickGame(Difficulty.forRank(1), seed = 4, physics = TestPhysics())
         val rank50 = BrickGame(Difficulty.forRank(50), seed = 4, physics = TestPhysics())
         assertEquals(setOf(0), rank1.board.bricks().map { it.row }.toSet())
-        assertEquals(setOf(0, 1, 2, 3), rank50.board.bricks().map { it.row }.toSet())
-        val firstRowValue = RowValues.FibonacciEighths.valueFor(11)
+        assertEquals(setOf(0, 1, 2), rank50.board.bricks().map { it.row }.toSet())
+        val firstRowValue = RowValues.FibonacciEighths.valueFor(6)
         assertTrue(rank50.board.bricks().all { it.hits == firstRowValue })
-        for (row in 0..3) {
+        for (row in 0..2) {
             val count = rank50.board.bricks().count { it.row == row }
-            assertTrue(count in 4..6, "row $row has $count bricks")
+            assertTrue(count in 2..5, "row $row has $count bricks")
         }
         assertEquals(listOf<GameEvent>(GameEvent.RoundStarted(1, 1)), rank50.drainEvents())
     }
@@ -112,5 +122,22 @@ class DifficultyTest {
         assertFailsWith<IllegalArgumentException> {
             BrickGame(Difficulty.forRank(30), seed = 1, physics = TestPhysics(), layout = layout)
         }
+    }
+
+    /**
+     * Ben's 2026-10-13 playtest: ranking up made games too hard to progress. A greedy bot that
+     * reaches about round 25 at rank 1 must still reach the Splitter's round at the hardest
+     * setting, and lose only a few rounds by rank 20.
+     */
+    @Test
+    fun aGoodPlayerKeepsProgressingAtHighRanks() {
+        val seeds = listOf(7919L, 15838L)
+        fun rounds(rank: Int) = seeds.map { RankBot.play(rank, it, maxRounds = 30).round }
+        val rank1 = rounds(1)
+        val rank20 = rounds(20)
+        val hardest = rounds(60)
+        assertTrue(rank1.all { it >= 20 }, "rank 1 reached $rank1")
+        assertTrue(rank20.all { it >= 18 }, "rank 20 reached $rank20")
+        assertTrue(hardest.all { it > Splitter.earnedAtRound }, "rank 60 reached $hardest")
     }
 }
