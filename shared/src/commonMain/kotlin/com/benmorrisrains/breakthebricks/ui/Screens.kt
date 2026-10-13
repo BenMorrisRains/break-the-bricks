@@ -87,12 +87,13 @@ fun ResultsScreen(
         }
         if (level != null) {
             MenuLabel(starText(result.stars), NeonPalette.Yellow, 32.sp)
-            if (!result.passed) MenuLabel("SURVIVE ${level.goalRounds} ROUNDS TO PASS", NeonPalette.Cyan)
+            if (!result.passed) MenuLabel("BREAK EVERY BRICK TO PASS", NeonPalette.Cyan)
         }
         MenuLabel(formatPoints(result.points), NeonPalette.Ink, 44.sp)
         MenuLabel("POINTS", NeonPalette.Purple)
         if (result.isNewBest) MenuLabel("NEW BEST!", NeonPalette.Yellow, 20.sp)
-        MenuLabel(roundLabel(result.round, level?.goalRounds), NeonPalette.Cyan, 18.sp)
+        val roundText = if (result.passed) "CLEARED IN ${result.round} ROUNDS" else "ROUND ${result.round}"
+        MenuLabel(roundText, NeonPalette.Cyan, 18.sp)
         MenuLabel("BEST ${formatPoints(result.bestPoints)}")
         result.rankUp?.let { MenuLabel("RANK UP!  RANK ${it.to}", NeonPalette.Lime, 22.sp) }
         RankPanel(rank)

@@ -18,8 +18,8 @@ interface GameEngine {
     /** Current aim in radians, measured up from the positive x axis. */
     val aimAngle: Float
     val activeAbilities: List<Ability>
-    /** Rounds to survive in a level, or null in an endless game. */
-    val goalRounds: Int? get() = null
+    /** In a level, the rounds that bring a new row (then the board must be cleared); null in an endless game. */
+    val levelRows: Int? get() = null
 
     /** Sets the aim while [phase] is [RoundPhase.Aiming]; clamped to the allowed range. */
     fun aim(angleRadians: Float)

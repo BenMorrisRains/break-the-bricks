@@ -19,9 +19,9 @@ class LevelProgress(private val store: KeyValueStore, val levels: List<Level> = 
 
     val totalStars: Int get() = levels.sumOf { stars(it.number) }
 
-    /** Saves a finished attempt and returns the stars it earned. */
-    fun record(level: Level, passed: Boolean, points: Long): Int {
-        val earned = level.stars(passed, points)
+    /** Saves a finished attempt that ended in [round] and returns the stars it earned. */
+    fun record(level: Level, passed: Boolean, round: Int, points: Long): Int {
+        val earned = level.stars(passed, round)
         if (earned > stars(level.number)) store.putLong(starsKey(level.number), earned.toLong())
         if (points > bestPoints(level.number)) store.putLong(bestPointsKey(level.number), points)
         return earned
@@ -41,8 +41,8 @@ fun finishCard(engine: GameEngine, level: Level?): FinishCard? {
     if (!engine.phase.isFinished) return null
     if (level == null) return FinishCard("GAME OVER", null, "TAP TO CONTINUE", won = false)
     val passed = engine.phase == RoundPhase.LevelComplete
-    val stars = level.stars(passed, engine.points)
-    val note = if (passed) "${starText(stars)}  ${formatPoints(engine.points)} PTS" else "SURVIVE ${level.goalRounds} ROUNDS"
+    val stars = level.stars(passed, engine.round)
+    val note = if (passed) "${starText(stars)}  IN ${engine.round} ROUNDS" else "BREAK EVERY BRICK"
     return FinishCard(if (passed) "LEVEL ${level.number} CLEAR" else "GAME OVER", note, "TAP TO CONTINUE", won = passed)
 }
 

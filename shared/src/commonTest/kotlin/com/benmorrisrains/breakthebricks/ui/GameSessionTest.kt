@@ -164,15 +164,15 @@ class GameSessionTest {
         assertEquals(level, session.level)
         assertEquals(0, session.bestPoints, "a level has its own best, not free play's")
 
-        engines.last().apply { points = level.threeStarPoints; round = level.goalRounds; phase = RoundPhase.LevelComplete }
-        session.onFrame(0.016f, listOf(GameEvent.LevelCompleted(level.goalRounds, level.threeStarPoints)))
+        engines.last().apply { points = 40; round = level.threeStarRounds; phase = RoundPhase.LevelComplete }
+        session.onFrame(0.016f, listOf(GameEvent.LevelCompleted(level.threeStarRounds, 40)))
         val result = session.result
         assertEquals(true, result?.passed)
         assertEquals(3, result?.stars)
         assertEquals(level, result?.level)
         assertEquals(3, session.progress.stars(1))
         assertTrue(session.progress.isUnlocked(2))
-        assertEquals(level.threeStarPoints, store.getLong(LevelProgress.bestPointsKey(1), 0))
+        assertEquals(40, store.getLong(LevelProgress.bestPointsKey(1), 0))
         assertEquals(500, store.getLong(GameSession.BEST_POINTS_KEY, 0), "free play's best is untouched")
 
         session.onFrame(GameSession.RESULTS_DELAY_SECONDS, emptyList())

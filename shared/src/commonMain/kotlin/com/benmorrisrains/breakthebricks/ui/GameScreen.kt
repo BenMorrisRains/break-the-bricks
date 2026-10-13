@@ -97,8 +97,8 @@ fun GameScreen(
 }
 
 /**
- * Points in large arcade digits at top center, the round on the left (with the goal in a
- * level, "ROUND 3/8"), the best on the right. With [onPause], a pause button sits before the round.
+ * Points in large arcade digits at top center, the round on the left (in a level, the rows
+ * still to come, see [roundLabel]), the best on the right. With [onPause], a pause button sits before the round.
  */
 @Composable
 fun GameHud(
@@ -114,7 +114,7 @@ fun GameHud(
     Box(modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp)) {
         Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.CenterVertically) {
             if (onPause != null) PauseButton(onPause)
-            BasicText(text = roundLabel(round, engine.goalRounds), style = arcadeStyle(NeonPalette.Purple, 14.sp))
+            BasicText(text = roundLabel(round, engine.levelRows), style = arcadeStyle(NeonPalette.Purple, 14.sp))
         }
         BasicText(
             text = formatPoints(points),
