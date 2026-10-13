@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -56,6 +57,7 @@ fun GameScreen(
     val frame = remember { mutableLongStateOf(0L) }
     val flashes = remember(engine) { BrickFlashes() }
     val abilityCue = remember(engine) { AbilityCue() }
+    val showcase = remember(engine) { AbilityShowcase() }
     val latestOnFrame by rememberUpdatedState(onFrame)
     LaunchedEffect(engine, paused) {
         if (paused) return@LaunchedEffect
@@ -65,34 +67,41 @@ fun GameScreen(
             withFrameNanos { now ->
                 val elapsed = ((now - last) / 1_000_000_000f).coerceIn(0f, MAX_FRAME_SECONDS)
                 last = now
-                engine.advance(elapsed)
+                // An earning card holds the game still for its moment; the effects keep playing.
+                if (!showcase.holdsPlay) engine.advance(elapsed)
                 val events = engine.drainEvents()
                 flashes.update(elapsed, events)
                 abilityCue.update(events)
+                showcase.update(elapsed, events, engine)
                 latestOnFrame(elapsed, events)
                 frame.longValue++
             }
         }
     }
-    Column(modifier) {
-        GameHud(engine, frame, bestPoints, onPause = onPause)
-        Box(Modifier.fillMaxWidth().height(1.dp).background(NeonPalette.Purple.copy(alpha = 0.5f)))
-        GameCanvas(
-            engine = engine,
-            frame = frame,
-            flashes = flashes,
-            abilityCue = abilityCue,
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            onFire = onFire,
-            onGameOverTap = onGameOverTap,
-            level = level,
-        )
+    Box(modifier) {
+        Column(Modifier.fillMaxSize()) {
+            GameHud(engine, frame, bestPoints, onPause = onPause, showcase = showcase)
+            Box(Modifier.fillMaxWidth().height(1.dp).background(NeonPalette.Purple.copy(alpha = 0.5f)))
+            GameCanvas(
+                engine = engine,
+                frame = frame,
+                flashes = flashes,
+                abilityCue = abilityCue,
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                effects = showcase.effects,
+                onFire = onFire,
+                onGameOverTap = onGameOverTap,
+                level = level,
+            )
+        }
+        EarnedCardOverlay(engine, showcase, frame)
     }
 }
 
 /**
  * Points in large arcade digits at top center, the round on the left (with the goal in a
  * level, "ROUND 3/8"), the best on the right. With [onPause], a pause button sits before the round.
+ * With [showcase], the active abilities' tray sits right of the points.
  */
 @Composable
 fun GameHud(
@@ -101,6 +110,7 @@ fun GameHud(
     bestPoints: Long,
     modifier: Modifier = Modifier,
     onPause: (() -> Unit)? = null,
+    showcase: AbilityShowcase? = null,
 ) {
     // Re-read the engine each frame but only recompose when the shown values change.
     val points by remember(engine) { derivedStateOf { frame.longValue; engine.points } }
@@ -110,11 +120,10 @@ fun GameHud(
             if (onPause != null) PauseButton(onPause)
             BasicText(text = roundLabel(round, engine.goalRounds), style = arcadeStyle(NeonPalette.Purple, 14.sp))
         }
-        BasicText(
-            text = formatPoints(points),
-            modifier = Modifier.align(Alignment.Center),
-            style = arcadeStyle(NeonPalette.Ink, 34.sp),
-        )
+        Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
+            BasicText(text = formatPoints(points), style = arcadeStyle(NeonPalette.Ink, 34.sp))
+            if (showcase != null) AbilityTray(engine, showcase, frame, Modifier.padding(start = 6.dp))
+        }
         BasicText(
             text = "BEST ${formatPoints(maxOf(bestPoints, points))}",
             modifier = Modifier.align(Alignment.CenterEnd),

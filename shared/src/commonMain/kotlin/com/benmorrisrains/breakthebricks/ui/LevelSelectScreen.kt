@@ -21,13 +21,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.benmorrisrains.breakthebricks.engine.Abilities
 import com.benmorrisrains.breakthebricks.engine.Level
 
 private const val TILES_PER_ROW = 2
 
 /**
  * The 10 free levels as neon tiles with their stars, opened from home. A locked level shows
- * dim and can't be tapped until the one before it is passed.
+ * dim and can't be tapped until the one before it is passed. Below them, the abilities a game
+ * can earn play their preview clips.
  */
 @Composable
 fun LevelSelectScreen(
@@ -53,6 +55,7 @@ fun LevelSelectScreen(
                 repeat(TILES_PER_ROW - row.size) { Box(Modifier.weight(1f)) }
             }
         }
+        LockedAbilities(Abilities.earnable, title = "ABILITIES TO EARN")
         NeonButton("BACK", onBack, color = NeonPalette.Cyan)
     }
 }

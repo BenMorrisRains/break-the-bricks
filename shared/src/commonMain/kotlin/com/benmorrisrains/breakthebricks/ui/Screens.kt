@@ -66,6 +66,7 @@ fun PauseMenu(
 /**
  * After a game: points, the round reached, the best, rank progress, Play again and Home. After
  * a level it also shows pass or fail with the stars, Next level once passed, and Levels.
+ * Abilities the game didn't reach are shown off as locked, with their preview clips.
  */
 @Composable
 fun ResultsScreen(
@@ -94,6 +95,7 @@ fun ResultsScreen(
         MenuLabel(roundLabel(result.round, level?.goalRounds), NeonPalette.Cyan, 18.sp)
         MenuLabel("BEST ${formatPoints(result.bestPoints)}")
         RankPanel(rank)
+        LockedAbilities(lockedAbilities(result.round))
         Spacer(Modifier.height(16.dp))
         if (onNextLevel != null) NeonButton("NEXT LEVEL", onNextLevel, color = NeonPalette.Lime)
         NeonButton(if (level == null) "PLAY AGAIN" else "RETRY", onPlayAgain, color = if (onNextLevel == null) NeonPalette.Lime else NeonPalette.Orange)
