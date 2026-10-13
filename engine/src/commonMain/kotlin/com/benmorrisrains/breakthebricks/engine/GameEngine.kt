@@ -1,7 +1,7 @@
 package com.benmorrisrains.breakthebricks.engine
 
 /**
- * The contract between the engine and the UI. The UI calls [aim], [selectAbility] and [fire] from touch input,
+ * The contract between the engine and the UI. The UI calls [aim], [selectAbility], [fire] and [redirect] from touch input,
  * calls [advance] once per frame with the elapsed time, draws from the read-only state, and
  * plays effects for each drained [GameEvent].
  */
@@ -43,6 +43,15 @@ interface GameEngine {
      * over or the ability is already on (or already waiting for the next shot).
      */
     fun boost(ability: Ability): Boolean = false
+
+    /** True while a time freeze has play in slow motion and [redirect] is allowed. */
+    val timeFrozen: Boolean get() = false
+
+    /**
+     * During a time freeze, sends every flying ball off along [angleRadians] (measured like
+     * [aimAngle], any direction but too flat) at its own speed, and ends the freeze. Ignored otherwise.
+     */
+    fun redirect(angleRadians: Float) {}
 
     /** Runs as many fixed physics steps as [elapsedSeconds] covers. */
     fun advance(elapsedSeconds: Float)

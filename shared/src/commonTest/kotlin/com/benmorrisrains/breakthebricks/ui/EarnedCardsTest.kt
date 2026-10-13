@@ -85,6 +85,9 @@ class EarnedCardsTest {
         assertEquals("SPLITTER BALL", abilityName(AbilityIds.SPLITTER))
         assertEquals("DRILL BALL", abilityName(AbilityIds.DRILL))
         assertEquals("GRENADE BALL", abilityName(GrenadeBall.id))
+        assertEquals("GHOST BALL", abilityName(AbilityIds.GHOST))
+        assertEquals("TIME FREEZE", abilityName(AbilityIds.TIME_FREEZE))
+        assertEquals("5-WAY SPLITTER", abilityName(AbilityIds.SPLITTER_FIVE))
         assertEquals("LASER BALL", abilityName("laser"))
     }
 

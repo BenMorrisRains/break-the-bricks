@@ -76,6 +76,8 @@ fun GameCanvas(
         trails.resize(layout.cell)
 
         drawRect(NeonPalette.Background)
+        // A time freeze tints the field while the player can swipe the balls a new way.
+        if (engine.timeFrozen) drawRect(NeonPalette.Cyan.copy(alpha = 0.08f))
         val shakeX = (effects?.shakeX() ?: 0f) * layout.cell
         val shakeY = (effects?.shakeY() ?: 0f) * layout.cell
         translate(shakeX, shakeY) {
@@ -217,7 +219,7 @@ private fun DrawScope.drawBalls(
         when (ball.state) {
             BallState.Flying -> drawBall(ball.x, ball.y, layout, config, trailOf = ball, trails = trails, isGrenade = isGrenade, sparkTime = effectsTime, size = ball.size, drilling = ball.pierce > 0, tint = tint)
             BallState.Landed -> drawBall(ball.x, ball.y, layout, config, size = ball.size, tint = tint)
-            BallState.Waiting -> Unit
+            BallState.Waiting, BallState.Gone -> Unit
         }
     }
     // Balls still waiting to leave all sit on the launch point, so one is drawn for them.

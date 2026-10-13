@@ -7,13 +7,17 @@ import com.benmorrisrains.breakthebricks.engine.GrenadeBall
 
 /**
  * Ids of the abilities in Ben's lineup (2026-10-13): big ball at round 5, splitter at 10, drill
- * at 20 and the grenade at 30. The engine's abilities must use these ids to get their looks.
+ * at 20, the grenade at 30, then ghost ball, time freeze and the 5-way splitter at 40, 50 and 60.
+ * The engine's abilities must use these ids to get their looks.
  */
 object AbilityIds {
     const val BIG_BALL = "big_ball"
     const val SPLITTER = "splitter"
     const val DRILL = "drill"
     val GRENADE = GrenadeBall.id
+    const val GHOST = "ghost"
+    const val TIME_FREEZE = "time_freeze"
+    const val SPLITTER_FIVE = "splitter_five"
 }
 
 /** The name players see for an ability: "GRENADE BALL". */
@@ -22,6 +26,9 @@ fun abilityName(abilityId: String): String = when (abilityId) {
     AbilityIds.SPLITTER -> "SPLITTER BALL"
     AbilityIds.DRILL -> "DRILL BALL"
     AbilityIds.GRENADE -> "GRENADE BALL"
+    AbilityIds.GHOST -> "GHOST BALL"
+    AbilityIds.TIME_FREEZE -> "TIME FREEZE"
+    AbilityIds.SPLITTER_FIVE -> "5-WAY SPLITTER"
     else -> "${abilityId.uppercase().replace('_', ' ')} BALL"
 }
 

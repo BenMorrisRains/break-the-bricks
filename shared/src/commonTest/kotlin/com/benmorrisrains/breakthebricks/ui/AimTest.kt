@@ -1,10 +1,13 @@
 package com.benmorrisrains.breakthebricks.ui
 
 import com.benmorrisrains.breakthebricks.engine.BrickGame
+import com.benmorrisrains.breakthebricks.engine.Brick
 import com.benmorrisrains.breakthebricks.engine.GameConfig
 import com.benmorrisrains.breakthebricks.engine.GridPhysics
 import com.benmorrisrains.breakthebricks.engine.RoundPhase
+import com.benmorrisrains.breakthebricks.engine.TimeFreeze
 import kotlin.math.PI
+import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -148,5 +151,48 @@ class AimTest {
         gesture.move(3f, floor - 1f)
         assertFalse(gesture.release())
         assertEquals(RoundPhase.Aiming, engine.phase)
+    }
+
+    @Test
+    fun aSwipePointsTheWayTheFingerWentAndShortOnesDoNothing() {
+        assertEquals(0f, swipeAngle(1f, 4f, 3f, 4f)!!, 1e-5f)
+        assertEquals(PI.toFloat() / 2, swipeAngle(1f, 4f, 1f, 2f)!!, 1e-5f)
+        assertEquals(-PI.toFloat() / 2, swipeAngle(1f, 4f, 1f, 6f)!!, 1e-5f)
+        assertNull(swipeAngle(1f, 4f, 1.1f, 4.1f))
+    }
+
+    /** A game with the time freeze picked, stepped until the first ball's first hit froze it. */
+    private fun frozenGame(): BrickGame {
+        val engine = BrickGame(config, seed = 2026, physics = GridPhysics, abilities = listOf(TimeFreeze), earnable = emptyList())
+        engine.board.clear()
+        engine.board[3, 2] = Brick(3, 2, 50L)
+        engine.aim(PI.toFloat() / 2)
+        engine.fire()
+        var steps = 0
+        while (!engine.timeFrozen && steps++ < 10_000) engine.step()
+        assertTrue(engine.timeFrozen)
+        return engine
+    }
+
+    @Test
+    fun swipingDuringATimeFreezeRedirectsTheBalls() {
+        val engine = frozenGame()
+        val gesture = AimGesture(engine)
+        gesture.press(2f, 5f)
+        gesture.move(4f, 3f)
+        assertFalse(gesture.release(), "a swipe never fires")
+        assertFalse(engine.timeFrozen)
+        val ball = engine.balls.first()
+        assertEquals(PI.toFloat() / 4, atan2(-ball.vy, ball.vx), 1e-4f)
+    }
+
+    @Test
+    fun aTapDuringATimeFreezeKeepsTheFreeze() {
+        val engine = frozenGame()
+        val gesture = AimGesture(engine)
+        gesture.press(2f, 5f)
+        gesture.release()
+        assertTrue(engine.timeFrozen)
+        assertTrue(engine.redirects.isEmpty())
     }
 }
