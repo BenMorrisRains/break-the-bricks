@@ -2,11 +2,13 @@ package com.benmorrisrains.breakthebricks.engine
 
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * The game itself: rounds, the brick grid, scoring and the fixed-step loop.
@@ -67,6 +69,9 @@ class BrickGame(
     private var firstBallHasHit = false
     private var currentBall: Ball? = null
 
+    /** A split the first ball asked for during its current step: extra balls and their spread. */
+    private var pendingSplit: Pair<Int, Float>? = null
+
     private val floorY get() = config.rows - config.ballRadius
     private val fireIntervalSteps = max(1, (config.fireInterval * GameConfig.STEPS_PER_SECOND).roundToInt())
     private val advanceSteps = max(1, (config.advanceSeconds * GameConfig.STEPS_PER_SECOND).roundToInt())
@@ -81,10 +86,15 @@ class BrickGame(
 
     private val abilityContext = object : AbilityContext {
         override val board: Board get() = this@BrickGame.board
+        override val config: GameConfig get() = this@BrickGame.config
         override fun damage(column: Int, row: Int, hits: Long) = damageBrick(column, row, hits)
         override fun breakBrick(column: Int, row: Int) {
             val brick = board[column, row] ?: return
             damageBrick(column, row, brick.hits)
+        }
+        override fun splitFirstBall(extraBalls: Int, spreadRadians: Float) {
+            require(extraBalls >= 0)
+            pendingSplit = extraBalls to spreadRadians
         }
     }
 
@@ -124,6 +134,7 @@ class BrickGame(
             ball.vx = vx
             ball.vy = vy
             ball.state = BallState.Waiting
+            resetEffects(ball)
         }
         ballsLaunched = 0
         firstLandingX = null
@@ -161,11 +172,14 @@ class BrickGame(
 
     private fun stepBalls() {
         if (phase == RoundPhase.Firing && stepsInPhase % fireIntervalSteps == 0) {
-            ballList[ballsLaunched].state = BallState.Flying
+            launch(ballList[ballsLaunched])
             ballsLaunched++
-            if (ballsLaunched == ballList.size) phase = RoundPhase.Returning
+            if (ballsLaunched == ballCount) phase = RoundPhase.Returning
         }
-        for (ball in ballList) {
+        // A split adds balls to the end of the list mid-loop; they start moving next step.
+        val moving = ballList.size
+        for (i in 0 until moving) {
+            val ball = ballList[i]
             when (ball.state) {
                 BallState.Flying -> moveFlying(ball)
                 BallState.Landed -> slideToLaunch(ball)
@@ -177,11 +191,29 @@ class BrickGame(
         }
     }
 
+    /** Sends [ball] off, letting the abilities change the round's first ball before it moves. */
+    private fun launch(ball: Ball) {
+        if (ball === ballList.first()) {
+            for (ability in abilityList) ability.onFirstLaunch(abilityContext, ball)
+        }
+        // A bigger ball starts higher, resting on the floor, and clear of the walls.
+        val radius = ball.radius(config)
+        ball.x = ball.x.coerceIn(radius, config.columns - radius)
+        ball.y = config.rows - radius
+        ball.state = BallState.Flying
+    }
+
     private fun moveFlying(ball: Ball) {
         currentBall = ball
         val landed = physics.step(ball, board, config, GameConfig.STEP_SECONDS, contacts)
         currentBall = null
+        pendingSplit?.let { (extraBalls, spread) ->
+            pendingSplit = null
+            // A ball that landed in the same step has nowhere left to split to.
+            if (!landed) split(ball, extraBalls, spread)
+        }
         if (!landed) return
+        resetEffects(ball)
         val x = ball.x.coerceIn(config.ballRadius, config.columns - config.ballRadius)
         ball.x = x
         ball.y = floorY
@@ -191,6 +223,36 @@ class BrickGame(
         val isFirst = firstLandingX == null
         if (isFirst) firstLandingX = x
         events += GameEvent.BallLanded(x, isFirst)
+    }
+
+    /**
+     * Adds [extraBalls] normal balls at [ball], at the same speed, turned [spread] radians from it
+     * alternately to each side (+1, -1, +2, -2 ...). A turn that would leave a ball flatter than
+     * [GameConfig.minAimAngle] is steepened to it, so no ball skims back and forth forever.
+     */
+    private fun split(ball: Ball, extraBalls: Int, spread: Float) {
+        val speed = sqrt(ball.vx * ball.vx + ball.vy * ball.vy)
+        if (speed == 0f) return
+        val heading = atan2(ball.vy, ball.vx)
+        for (i in 1..extraBalls) {
+            val side = if (i % 2 == 1) 1 else -1
+            val angle = heading + side * ((i + 1) / 2) * spread
+            var vx = cos(angle) * speed
+            var vy = sin(angle) * speed
+            val minVy = sin(config.minAimAngle) * speed
+            if (abs(vy) < minVy) {
+                vy = if (vy > 0f) minVy else -minVy
+                vx = (if (vx < 0f) -1f else 1f) * cos(config.minAimAngle) * speed
+            }
+            ballList += Ball(ball.x, ball.y, vx, vy, BallState.Flying)
+        }
+    }
+
+    /** Ability effects last one flight. */
+    private fun resetEffects(ball: Ball) {
+        ball.size = 1f
+        ball.pierce = 0
+        ball.insideBricks.clear()
     }
 
     /** Landed balls roll along the floor to where the first ball landed. */
@@ -247,6 +309,8 @@ class BrickGame(
     private fun startRound() {
         round++
         ballCount = round
+        // Balls split off last round are gone; the new round's ball joins.
+        while (ballList.size > ballCount) ballList.removeAt(ballList.lastIndex)
         while (ballList.size < ballCount) ballList += Ball(launchX, floorY)
         for (ball in ballList) {
             ball.x = launchX
@@ -254,6 +318,7 @@ class BrickGame(
             ball.vx = 0f
             ball.vy = 0f
             ball.state = BallState.Waiting
+            resetEffects(ball)
         }
         spawnRow(config.rowValues.valueFor(round))
         stepsInPhase = 0

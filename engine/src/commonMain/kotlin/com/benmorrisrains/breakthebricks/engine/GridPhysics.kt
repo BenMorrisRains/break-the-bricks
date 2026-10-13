@@ -36,7 +36,7 @@ object GridPhysics : BallPhysics {
     /** How far (cells) rounding may leave a ball past a surface it is touching. */
     private const val SLOP = 1e-5
 
-    /** Centre height of a ball resting on the floor. */
+    /** Centre height of a normal-sized ball resting on the floor. */
     fun restingY(config: GameConfig): Float = config.rows - config.ballRadius
 
     /**
@@ -45,6 +45,11 @@ object GridPhysics : BallPhysics {
      * board is read again after every contact. When one contact touches two bricks at once, both
      * are reported, ordered by row and then column, before the ball reflects once.
      *
+     * A ball with [Ball.pierce] left passes through the bricks it hits, using up 1 per brick, as
+     * long as it has enough left for every brick in that contact; otherwise it bounces as usual.
+     * The bricks it passes through stay see-through to it until it is clear of all of them, so each
+     * is hit once and a ball that runs out inside a stack of bricks can't be trapped bouncing there.
+     *
      * Returns true when the ball lands; it then rests at [restingY] with zero velocity. Physics never
      * changes the board or [Ball.state].
      */
@@ -52,17 +57,20 @@ object GridPhysics : BallPhysics {
         require(dt >= 0f) { "dt must not be negative" }
         val sweep = Sweep(
             board = board,
-            radius = config.ballRadius.toDouble(),
+            radius = ball.radius(config).toDouble(),
             x = ball.x.toDouble(),
             y = ball.y.toDouble(),
             vx = ball.vx.toDouble(),
             vy = ball.vy.toDouble(),
+            pierce = ball.pierce,
+            inside = ball.insideBricks,
         )
         val landed = sweep.run(dt.toDouble(), contacts)
         ball.x = sweep.x.toFloat()
         ball.y = sweep.y.toFloat()
         ball.vx = sweep.vx.toFloat()
         ball.vy = sweep.vy.toFloat()
+        ball.pierce = sweep.pierce
         return landed
     }
 
@@ -81,6 +89,9 @@ object GridPhysics : BallPhysics {
         var y: Double,
         var vx: Double,
         var vy: Double,
+        var pierce: Int,
+        /** Cells of bricks the ball has passed through; see-through until it is clear of them all. */
+        val inside: MutableSet<Int>,
     ) {
         private val width = board.columns.toDouble()
         private val floorY = board.rows - radius
@@ -91,6 +102,7 @@ object GridPhysics : BallPhysics {
             var contactsLeft = MAX_CONTACTS_PER_STEP
             while (remaining > 0.0 && (vx != 0.0 || vy != 0.0)) {
                 if (contactsLeft-- == 0) return false
+                leaveBricks()
                 val found = ArrayList<Contact>()
                 findBoundaryContacts(remaining, found)
                 findBrickContacts(remaining, found)
@@ -107,12 +119,14 @@ object GridPhysics : BallPhysics {
                 y += vy * first
                 remaining -= first
 
-                now.filter { it.surface == Surface.Brick }
-                    .map { it.cell }
-                    .distinct()
-                    .sorted()
-                    .forEach { contacts.brickHit(it % board.columns, it / board.columns) }
+                val bricksHit = now.filter { it.surface == Surface.Brick }.map { it.cell }.distinct().sorted()
+                bricksHit.forEach { contacts.brickHit(it % board.columns, it / board.columns) }
                 if (now.any { it.surface == Surface.Wall }) contacts.wallBounce()
+                val passThrough = bricksHit.isNotEmpty() && pierce >= bricksHit.size
+                if (passThrough) {
+                    pierce -= bricksHit.size
+                    inside += bricksHit
+                }
 
                 if (now.any { it.surface == Surface.Floor }) {
                     x = x.coerceIn(radius, width - radius)
@@ -121,8 +135,9 @@ object GridPhysics : BallPhysics {
                     vy = 0.0
                     return true
                 }
-                val flipX = now.any { it.nx * vx < 0.0 }
-                val flipY = now.any { it.ny * vy < 0.0 }
+                val bouncesOff = if (passThrough) now.filter { it.surface != Surface.Brick } else now
+                val flipX = bouncesOff.any { it.nx * vx < 0.0 }
+                val flipY = bouncesOff.any { it.ny * vy < 0.0 }
                 if (flipX) vx = -vx
                 if (flipY) vy = -vy
             }
@@ -155,9 +170,25 @@ object GridPhysics : BallPhysics {
             for (row in firstRow..lastRow) {
                 for (column in firstColumn..lastColumn) {
                     val brick = board[column, row] ?: continue
-                    if (brick.hits > 0) sweepBrick(row * board.columns + column, column.toDouble(), row.toDouble(), remaining, found)
+                    if (brick.hits > 0 && row * board.columns + column !in inside) {
+                        sweepBrick(row * board.columns + column, column.toDouble(), row.toDouble(), remaining, found)
+                    }
                 }
             }
+        }
+
+        /** Once the ball is clear of every brick it passed through, they are solid to it again. */
+        private fun leaveBricks() {
+            if (inside.isEmpty()) return
+            val reach = radius + SLOP
+            val stillIn = inside.any { cell ->
+                val column = cell % board.columns
+                val row = cell / board.columns
+                val dx = x - x.coerceIn(column.toDouble(), column + 1.0)
+                val dy = y - y.coerceIn(row.toDouble(), row + 1.0)
+                board[column, row] != null && dx * dx + dy * dy < reach * reach
+            }
+            if (!stillIn) inside.clear()
         }
 
         private fun sweepBrick(cell: Int, left: Double, top: Double, remaining: Double, found: MutableList<Contact>) {

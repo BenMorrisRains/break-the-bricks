@@ -8,6 +8,7 @@ package com.benmorrisrains.breakthebricks.engine
 interface GameEngine {
     val config: GameConfig
     val board: Board
+    /** This round's balls, first ball first. A split can add more than [ballCount] mid-round. */
     val balls: List<Ball>
     val phase: RoundPhase
     val round: Int
