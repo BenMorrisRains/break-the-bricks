@@ -261,13 +261,14 @@ class AbilitiesTest {
     }
 
     @Test
-    fun sameSeedAndAnglesGiveTheSameGameWithEveryAbility() {
+    fun sameSeedAnglesAndPicksGiveTheSameGameWithEveryAbility() {
         val angles = listOf(1.2f, 2.0f, 0.6f, 1.57f, 2.5f, 0.9f, 1.8f, 1.1f, 2.2f, 0.4f, 1.4f, 2.7f)
         fun play(): Triple<Long, Int, List<GameEvent>> {
             val game = BrickGame(seed = 2026, physics = GridPhysics, abilities = Abilities.earnable)
             val events = mutableListOf<GameEvent>()
             var i = 0
             while (game.phase != RoundPhase.GameOver && i < 40) {
+                game.selectAbility(Abilities.earnable[i % Abilities.earnable.size].id)
                 playRound(game, angles[i++ % angles.size])
                 events += game.drainEvents()
             }
@@ -275,7 +276,125 @@ class AbilitiesTest {
         }
         val a = play()
         val b = play()
-        assertTrue(a.third.count { it is GameEvent.AbilityTriggered } >= 4 * 3, "every ability fired")
+        val fired = a.third.filterIsInstance<GameEvent.AbilityTriggered>().map { it.abilityId }.toSet()
+        assertEquals(Abilities.earnable.map { it.id }.toSet(), fired, "every ability fired")
         assertEquals(a, b)
+    }
+
+    @Test
+    fun theFirstActiveAbilityIsPickedUntilThePlayerPicksAnother() {
+        val game = gameWith(listOf(BigBall, Drill), DropPhysics { 3.5f })
+        assertEquals(BigBall, game.selectedAbility)
+        game.selectAbility(Drill.id)
+        assertEquals(Drill, game.selectedAbility)
+        playRound(game)
+        playRound(game)
+        assertEquals(Drill, game.selectedAbility, "the pick carries over to later rounds")
+        assertEquals(listOf<String?>("drill", "drill"), game.firedAbilities)
+    }
+
+    @Test
+    fun withNoAbilityNothingIsPicked() {
+        val game = gameWith(emptyList(), DropPhysics { 3.5f })
+        assertEquals(null, game.selectedAbility)
+        game.selectAbility(GrenadeBall.id)
+        assertEquals(null, game.selectedAbility, "an ability that isn't active can't be picked")
+        playRound(game)
+        assertEquals(listOf<String?>(null), game.firedAbilities)
+    }
+
+    @Test
+    fun onlyThePickedAbilityActsOnTheFirstBall() {
+        val launched = mutableListOf<Pair<Float, Int>>()
+        lateinit var game: BrickGame
+        val physics = BallPhysics { ball, _, _, _, _ ->
+            if (ball === game.balls.first()) launched += ball.size to ball.pierce
+            true
+        }
+        game = gameWith(listOf(BigBall, Drill), physics)
+        playRound(game)
+        game.selectAbility(Drill.id)
+        playRound(game)
+        game.selectAbility(BigBall.id)
+        playRound(game)
+        assertEquals(listOf(BigBall.SIZE to 0, 1f to Drill.BRICKS, BigBall.SIZE to 0), launched)
+    }
+
+    @Test
+    fun onlyThePickedAbilityTriggersOnTheFirstHit() {
+        val game = gameWith(listOf(GrenadeBall, Splitter), GridPhysics, Triple(3, 2, 50L))
+        game.selectAbility(Splitter.id)
+        var mostBalls = 0
+        playRound(game, straightUp) { mostBalls = maxOf(mostBalls, game.balls.size) }
+        assertEquals(3, mostBalls)
+        assertEquals(listOf("splitter"), game.drainEvents().filterIsInstance<GameEvent.AbilityTriggered>().map { it.abilityId })
+        assertTrue(game.board[3, 3] != null, "the grenade didn't go off (the brick has dropped a row)")
+    }
+
+    @Test
+    fun onlyThePickedAbilitySeesTheFirstBallsHits() {
+        val calls = mutableListOf<String>()
+        fun recorder(name: String) = object : Ability {
+            override val id = name
+            override val earnedAtRound = 99
+            override val wagerTargetRound = 104
+            override fun onFirstBallHit(context: AbilityContext, ball: Ball, column: Int, row: Int) {
+                calls += name
+            }
+        }
+        val game = gameWith(listOf(recorder("a"), recorder("b")), GridPhysics, Triple(3, 2, 50L))
+        game.selectAbility("b")
+        playRound(game, straightUp)
+        assertTrue(calls.isNotEmpty() && calls.all { it == "b" }, "calls $calls")
+    }
+
+    @Test
+    fun aBoostIsPickedForTheShotItStartsOn() {
+        val game = gameWith(listOf(BigBall), DropPhysics { 3.5f })
+        game.boost(Drill)
+        assertEquals(BigBall, game.selectedAbility, "the boost waits for the shot")
+        playRound(game)
+        assertEquals(listOf<String?>("drill"), game.firedAbilities)
+        game.selectAbility(BigBall.id)
+        playRound(game)
+        assertEquals(listOf<String?>("drill", "big_ball"), game.firedAbilities, "the player can switch back")
+    }
+
+    @Test
+    fun thePickCanOnlyChangeWhileAiming() {
+        val game = gameWith(listOf(BigBall, Drill), DropPhysics { 3.5f })
+        game.fire()
+        game.selectAbility(Drill.id)
+        assertEquals(BigBall, game.selectedAbility)
+    }
+
+    @Test
+    fun earningAnAbilityKeepsThePlayersPick() {
+        val game = BrickGame(GameConfig(rows = 40), seed = 3, physics = DropPhysics { 3.5f })
+        while (game.round < 10) playRound(game)
+        assertEquals(listOf(BigBall, Splitter), game.activeAbilities)
+        assertEquals(BigBall, game.selectedAbility)
+        game.selectAbility(Splitter.id)
+        while (game.round < 20) playRound(game)
+        assertEquals(Splitter, game.selectedAbility, "earning the drill didn't move the pick")
+    }
+
+    @Test
+    fun replayingAnglesAndPicksReproducesTheGame() {
+        val angles = listOf(1.2f, 2.0f, 0.6f, 1.57f, 2.5f, 0.9f, 1.8f)
+        val original = BrickGame(seed = 11, physics = GridPhysics, abilities = Abilities.earnable)
+        var i = 0
+        while (original.phase != RoundPhase.GameOver && i < 20) {
+            if (i % 3 == 0) original.selectAbility(Abilities.earnable[(i / 3) % 4].id)
+            playRound(original, angles[i++ % angles.size])
+        }
+        val replay = BrickGame(seed = 11, physics = GridPhysics, abilities = Abilities.earnable)
+        for ((angle, id) in original.firedAngles.zip(original.firedAbilities)) {
+            if (id != null) replay.selectAbility(id)
+            playRound(replay, angle)
+        }
+        assertEquals(original.points, replay.points)
+        assertEquals(original.round, replay.round)
+        assertEquals(original.firedAbilities, replay.firedAbilities)
     }
 }

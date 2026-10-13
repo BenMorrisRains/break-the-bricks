@@ -21,6 +21,7 @@ class AbilityCue {
         }
     }
 
+    /** True while the grenade is the picked ability and hasn't gone off this round. */
     fun isArmed(engine: GameEngine): Boolean =
-        engine.activeAbilities.any { it.id == GrenadeBall.id } && !triggeredThisRound
+        engine.selectedAbility?.id == GrenadeBall.id && !triggeredThisRound
 }
