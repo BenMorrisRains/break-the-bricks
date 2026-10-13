@@ -3,8 +3,10 @@ package com.benmorrisrains.breakthebricks.ui
 import com.benmorrisrains.breakthebricks.engine.FreeLevels
 import com.benmorrisrains.breakthebricks.engine.GameEvent
 import com.benmorrisrains.breakthebricks.engine.RoundPhase
+import com.benmorrisrains.breakthebricks.platform.AudioPlayer
 import com.benmorrisrains.breakthebricks.platform.GameSettings
 import com.benmorrisrains.breakthebricks.platform.PlatformServices
+import com.benmorrisrains.breakthebricks.platform.SoundEffect
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -16,13 +18,22 @@ import kotlin.test.assertTrue
 
 class GameShellTest {
     private val engines = mutableListOf<GameSessionTest.FakeEngine>()
-    private val services = PlatformServices()
+    private class MusicRecorder : AudioPlayer {
+        var playing = false
+        override fun play(effect: SoundEffect) = Unit
+        override fun setMusicPlaying(playing: Boolean) { this.playing = playing }
+        override fun setMusicEnabled(enabled: Boolean) = Unit
+        override fun setEffectsEnabled(enabled: Boolean) = Unit
+    }
+
+    private val music = MusicRecorder()
+    private val services = PlatformServices(audio = music)
     private var seed = 0L
     private val shell = GameShell(
         session = GameSession(
             services,
             newSeed = { seed++ },
-            newEngine = { _, _ -> GameSessionTest.FakeEngine().also { engines += it } },
+            newEngine = { _, _, _ -> GameSessionTest.FakeEngine().also { engines += it } },
             newLevelEngine = { GameSessionTest.FakeEngine().also { engines += it } },
         ),
         settings = GameSettings(services),
@@ -171,6 +182,30 @@ class GameShellTest {
         shell.goHome()
         shell.playFreePlay()
         assertNull(shell.session.level)
+    }
+
+    @Test
+    fun musicPlaysDuringAGameAndStopsForPauseMenusAndTheEnd() {
+        assertFalse(music.playing, "no music on home")
+        shell.play()
+        assertTrue(music.playing)
+        shell.pause()
+        assertFalse(music.playing, "paused")
+        shell.openSettings()
+        assertFalse(music.playing)
+        shell.closeSettings()
+        assertFalse(music.playing, "still paused")
+        shell.resume()
+        assertTrue(music.playing)
+        endGame()
+        assertFalse(music.playing, "the game-over sound plays alone")
+        shell.play()
+        assertTrue(music.playing)
+        shell.goHome()
+        assertFalse(music.playing)
+        shell.playFreePlay()
+        shell.openLevels()
+        assertFalse(music.playing)
     }
 
     @Test

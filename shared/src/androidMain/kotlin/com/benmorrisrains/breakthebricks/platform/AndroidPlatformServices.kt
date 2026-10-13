@@ -1,32 +1,63 @@
 package com.benmorrisrains.breakthebricks.platform
 
+import android.app.Activity
+import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
 import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.media.SoundPool
 import android.os.Build
+import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import java.io.File
+import java.util.concurrent.locks.LockSupport
 
 private var cached: PlatformServices? = null
 
 /**
  * The Android services. They live as long as the process, so activity recreation reuses the
- * same SoundPool instead of loading the sounds again.
+ * same SoundPool instead of loading the sounds again. The music pauses while no activity of the
+ * app is on screen.
  */
 fun createPlatformServices(context: Context): PlatformServices {
     cached?.let { return it }
     val app = context.applicationContext
+    val audio = SoundPoolAudio(app)
+    (app as? Application)?.registerActivityLifecycleCallbacks(VisibleActivities(audio::setAppActive))
     return PlatformServices(
-        audio = SoundPoolAudio(app),
+        audio = audio,
         haptics = VibratorHaptics(app),
         store = SharedPreferencesStore(app.getSharedPreferences("break_the_bricks", Context.MODE_PRIVATE)),
     ).also { cached = it }
 }
 
-/** Sound effects through SoundPool, which mixes overlapping hits with low latency. */
+/** Counts the app's started activities and reports when the app becomes visible or hidden. */
+private class VisibleActivities(private val onVisible: (Boolean) -> Unit) : Application.ActivityLifecycleCallbacks {
+    private var started = 0
+
+    override fun onActivityStarted(activity: Activity) {
+        if (started++ == 0) onVisible(true)
+    }
+
+    override fun onActivityStopped(activity: Activity) {
+        if (--started == 0) onVisible(false)
+    }
+
+    override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
+    override fun onActivityResumed(activity: Activity) = Unit
+    override fun onActivityPaused(activity: Activity) = Unit
+    override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
+    override fun onActivityDestroyed(activity: Activity) = Unit
+}
+
+/**
+ * Sound effects through SoundPool, which mixes overlapping hits with low latency, and the music
+ * through a [LoopingTrack].
+ */
 internal class SoundPoolAudio(context: Context) : ToggleableAudio() {
     private val pool = SoundPool.Builder()
         .setMaxStreams(8)
@@ -48,9 +79,85 @@ internal class SoundPoolAudio(context: Context) : ToggleableAudio() {
         }
     }
 
+    private val music = LoopingTrack()
+
     override fun playEffect(effect: SoundEffect) {
         // Returns 0 without playing if the sound is still loading; that's fine for a blip.
         soundIds[effect]?.let { pool.play(it, 1f, 1f, 1, 0, 1f) }
+    }
+
+    override fun resumeMusic() = music.resume()
+
+    override fun pauseMusic() = music.pause()
+}
+
+/**
+ * The music loop, streamed to an AudioTrack by its own thread so it repeats without a gap. The
+ * thread starts the first time music is wanted, renders the loop there, and then lives as long
+ * as the process, parked while the music is paused.
+ */
+internal class LoopingTrack {
+    @Volatile private var playing = false
+    private var thread: Thread? = null
+
+    @Synchronized
+    fun resume() {
+        playing = true
+        val running = thread
+        if (running == null) {
+            thread = Thread(::run, "music").apply { isDaemon = true; start() }
+        } else {
+            LockSupport.unpark(running)
+        }
+    }
+
+    fun pause() {
+        playing = false
+    }
+
+    private fun run() {
+        val samples = ChipMusic.pcm()
+        val track = try {
+            val minBuffer = AudioTrack.getMinBufferSize(
+                ChipMusic.SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT,
+            )
+            AudioTrack.Builder()
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_GAME)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build(),
+                )
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setSampleRate(ChipMusic.SAMPLE_RATE)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .build(),
+                )
+                .setBufferSizeInBytes(maxOf(minBuffer * 2, ChipMusic.SAMPLE_RATE / 5)) // at least 100 ms
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .build()
+        } catch (_: Exception) {
+            return // No audio output; the game plays on without music.
+        }
+        val chunk = ChipMusic.SAMPLE_RATE / 20 // 50 ms per write
+        var at = 0
+        try {
+            while (true) {
+                if (!playing) {
+                    track.pause()
+                    while (!playing) LockSupport.park(this)
+                }
+                if (track.playState != AudioTrack.PLAYSTATE_PLAYING) track.play()
+                val count = minOf(chunk, samples.size - at)
+                val written = track.write(samples, at, count)
+                if (written < 0) return // The track failed; stay silent.
+                at = (at + written) % samples.size
+            }
+        } finally {
+            track.release()
+        }
     }
 }
 

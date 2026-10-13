@@ -29,11 +29,14 @@ import com.benmorrisrains.breakthebricks.ui.quitWarning
 /**
  * Root composable for every platform: home, level select, the wager screen, the game with its
  * pause menu, results and settings, with sound, haptics, saved settings, level progress, the
- * ability inventory and best scores from [services].
+ * ability inventory, best scores and the player's rank from [services].
  */
 @Composable
 fun App(services: PlatformServices = remember { PlatformServices() }) {
-    val shell = remember(services) { GameShell(GameSession(services), GameSettings(services)) }
+    val shell = remember(services) {
+        val session = GameSession(services)
+        GameShell(session, GameSettings(services), rank = session::rankProgress)
+    }
     val content = Modifier
         .fillMaxSize()
         .safeDrawingPadding()
@@ -72,6 +75,7 @@ fun App(services: PlatformServices = remember { PlatformServices() }) {
                     paused = shell.paused,
                     onPause = shell::pause,
                     level = session.level,
+                    hudRank = session::hudRank,
                     modifier = content,
                 )
                 if (shell.paused) {

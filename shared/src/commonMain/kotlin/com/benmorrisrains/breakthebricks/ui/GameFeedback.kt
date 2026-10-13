@@ -14,12 +14,17 @@ data class Feedback(val sounds: Set<SoundEffect>, val haptic: HapticStrength?) {
 /**
  * Turns each frame's drained [GameEvent]s into sounds and haptics. With dozens of balls in play
  * a frame can hold many hits, so the frequent sounds and the light tap are rate-limited instead
- * of firing once per event. Ability, game over and fire feedback always plays.
- * T13 tunes the feel; this is the first-playable mapping.
+ * of firing once per event. Moments (round start, abilities, level passed, game over, firing)
+ * always play.
+ *
+ * Haptics are kept for things the player should feel, from light to heavy: firing, breaking a
+ * brick and the new row arriving are light ticks; earning an ability and passing a level are a
+ * medium click; the grenade going off and game over are heavy. Plain hits and wall bounces are
+ * sound only, so a big volley rattles the ear without buzzing the hand.
  */
 class GameFeedback(
     private val repeatGapSeconds: Float = 0.05f,
-    private val lightTapGapSeconds: Float = 0.08f,
+    private val lightTapGapSeconds: Float = 0.1f,
 ) {
     private val sinceSound = mutableMapOf<SoundEffect, Float>()
     private var sinceTap = Float.MAX_VALUE
@@ -44,20 +49,27 @@ class GameFeedback(
                     tap(HapticStrength.Light)
                 }
                 GameEvent.WallBounce -> sounds += SoundEffect.WallBounce
+                is GameEvent.BallLanded -> if (event.isFirst) sounds += SoundEffect.BallReturn
+                is GameEvent.RoundStarted -> {
+                    sounds += SoundEffect.RoundStart
+                    tap(HapticStrength.Light)
+                }
                 is GameEvent.AbilityTriggered -> {
                     sounds += SoundEffect.AbilityTrigger
                     tap(HapticStrength.Heavy)
                 }
                 is GameEvent.AbilityEarned -> {
-                    sounds += SoundEffect.AbilityTrigger
+                    sounds += SoundEffect.AbilityEarned
                     tap(HapticStrength.Medium)
                 }
                 is GameEvent.GameOver -> {
                     sounds += SoundEffect.GameOver
                     tap(HapticStrength.Heavy)
                 }
-                is GameEvent.LevelCompleted -> tap(HapticStrength.Medium)
-                is GameEvent.BallLanded, is GameEvent.RoundStarted -> Unit
+                is GameEvent.LevelCompleted -> {
+                    sounds += SoundEffect.LevelComplete
+                    tap(HapticStrength.Medium)
+                }
             }
         }
 

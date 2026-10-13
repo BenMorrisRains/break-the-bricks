@@ -24,8 +24,8 @@ sealed interface Screen {
  * Which screen is showing and whether the game is paused. The game stays in [session] while
  * the pause menu or settings are open, so it picks up exactly where it stopped.
  *
- * [rank] is where the player's rank and progress come from once task T15 saves them; until
- * then it gives null and the home and results screens leave the rank out.
+ * [rank] is where the player's rank and progress come from; null leaves the rank off the home
+ * and results screens.
  */
 class GameShell(
     val session: GameSession,
@@ -54,6 +54,7 @@ class GameShell(
         session.quit()
         paused = false
         screen = Screen.Wager
+        syncMusic()
     }
 
     /** The wager screen's pick: stakes one copy of [ability] and starts free play with it active. */
@@ -84,20 +85,24 @@ class GameShell(
         session.quit()
         paused = false
         screen = Screen.Levels
+        syncMusic()
     }
 
     private fun start(level: Level?, stake: Ability? = null) {
         session.newGame(level, stake)
         paused = false
         screen = Screen.Game
+        syncMusic()
     }
 
     fun pause() {
         if (screen == Screen.Game && !session.engine.phase.isFinished) paused = true
+        syncMusic()
     }
 
     fun resume() {
         paused = false
+        syncMusic()
     }
 
     /** Leaves whatever is showing for the home screen; a game in progress is dropped and its wager lost. */
@@ -105,26 +110,37 @@ class GameShell(
         session.quit()
         paused = false
         screen = Screen.Home
+        syncMusic()
     }
 
     fun openSettings() {
         if (screen !is Screen.Settings) screen = Screen.Settings(returnTo = screen)
+        syncMusic()
     }
 
     fun closeSettings() {
         (screen as? Screen.Settings)?.let { screen = it.returnTo }
+        syncMusic()
     }
 
     /** Called every display frame the game runs; moves on to the results once they are due. */
     fun onFrame(elapsedSeconds: Float, events: List<GameEvent>) {
         session.onFrame(elapsedSeconds, events)
         if (session.resultsDue) showResults()
+        syncMusic()
     }
 
     /** A tap on the final board skips straight to the results, after a short guard. */
     fun onGameOverTap() {
         if (session.canSkipToResults) showResults()
     }
+
+    /** True while a game is being played: on screen, not paused and not over. */
+    val wantsMusic: Boolean
+        get() = screen == Screen.Game && !paused && !session.engine.phase.isFinished
+
+    /** The music loop plays during a game and stops for menus, the pause menu and the end. */
+    private fun syncMusic() = session.setMusicPlaying(wantsMusic)
 
     private fun showResults() {
         if (screen != Screen.Game) return
@@ -134,7 +150,7 @@ class GameShell(
 
 /**
  * The player's rank and how far they are toward the next one, as the home and results screens
- * show it. Task T15 owns the rank rules and fills this in.
+ * show it. [GameSession.rankProgress] fills it in from the saved rank.
  */
 data class RankProgress(val rank: Int, val pointsIntoRank: Long, val pointsForNextRank: Long) {
     val fraction: Float

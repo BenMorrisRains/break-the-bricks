@@ -1,5 +1,6 @@
 package com.benmorrisrains.breakthebricks.platform
 
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -16,10 +17,20 @@ class ChipTonesTest {
     }
 
     @Test
-    fun effectsStayShortExceptGameOver() {
-        SoundEffect.entries.filter { it != SoundEffect.GameOver }.forEach { effect ->
+    fun volleySoundsAreBlipsAndMomentsStayShort() {
+        val volley = setOf(SoundEffect.BrickHit, SoundEffect.BrickBreak, SoundEffect.WallBounce, SoundEffect.BallReturn)
+        SoundEffect.entries.forEach { effect ->
             val millis = ChipTones.pcm(effect).size * 1000 / ChipTones.SAMPLE_RATE
-            assertTrue(millis <= 250, "$effect lasts $millis ms")
+            val limit = if (effect in volley) 80 else 1_200
+            assertTrue(millis <= limit, "$effect lasts $millis ms")
+        }
+    }
+
+    @Test
+    fun nothingClips() {
+        SoundEffect.entries.forEach { effect ->
+            val peak = ChipTones.pcm(effect).maxOf { abs(it.toInt()) }
+            assertTrue(peak < Short.MAX_VALUE, "$effect clips")
         }
     }
 

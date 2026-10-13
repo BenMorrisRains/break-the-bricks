@@ -29,7 +29,7 @@ class WagerFlowTest {
         session = GameSession(
             PlatformServices(store = store),
             newSeed = { 1L },
-            newEngine = { _, abilities -> stakes += abilities; GameSessionTest.FakeEngine().also { engines += it } },
+            newEngine = { _, _, abilities -> stakes += abilities; GameSessionTest.FakeEngine().also { engines += it } },
             newLevelEngine = { GameSessionTest.FakeEngine().also { engines += it } },
         ),
         settings = GameSettings(PlatformServices(store = store)),

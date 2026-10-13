@@ -92,6 +92,13 @@ class BrickGame(
         require(goalRounds == null || goalRounds >= 1)
         // Row 0 is round 1's new row and the floor row ends the game, so a layout fits in between.
         require(layout.size <= config.rows - 2) { "a layout has at most ${config.rows - 2} rows" }
+        // A level's layout is the whole starting board; extra rank rows are for endless games.
+        require(layout.isEmpty() || config.startingRows == 1) { "a layout game can't also have extra starting rows" }
+        // Higher ranks start with extra rows, worth what round 1 is worth, already on the board.
+        repeat(config.startingRows - 1) {
+            spawnRow(config.rowValues.valueFor(1))
+            dropBricks()
+        }
         layout.forEachIndexed { index, cells ->
             require(cells.size == config.columns) { "a layout row has ${config.columns} cells" }
             cells.forEachIndexed { column, hits ->
@@ -248,7 +255,7 @@ class BrickGame(
             ball.vy = 0f
             ball.state = BallState.Waiting
         }
-        spawnRow()
+        spawnRow(config.rowValues.valueFor(round))
         stepsInPhase = 0
         phase = RoundPhase.Aiming
         events += GameEvent.RoundStarted(round, ballCount)
@@ -280,9 +287,8 @@ class BrickGame(
         }
     }
 
-    /** Fills row 0 with this round's bricks in seeded random columns. */
-    private fun spawnRow() {
-        val value = config.rowValues.valueFor(round)
+    /** Fills row 0 with bricks worth [value] in seeded random columns. */
+    private fun spawnRow(value: Long) {
         val count = random.nextIntInclusive(config.minBricksPerRow, config.maxBricksPerRow)
         val columns = IntArray(config.columns) { it }
         // Partial Fisher-Yates: the first [count] entries become the chosen columns.

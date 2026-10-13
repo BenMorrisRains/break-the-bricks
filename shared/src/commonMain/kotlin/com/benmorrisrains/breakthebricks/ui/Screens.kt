@@ -68,7 +68,8 @@ fun PauseMenu(
 }
 
 /**
- * After a game: points, the round reached, the best, rank progress, Play again and Home. After
+ * After a game: points, the round reached, the best, rank progress (with a banner when the game
+ * took the player up a rank), Play again and Home. After
  * a level it also shows pass or fail with the stars, Next level once passed, and Levels.
  */
 @Composable
@@ -100,6 +101,7 @@ fun ResultsScreen(
             MenuLabel(line.text, if (line.won) NeonPalette.Lime else NeonPalette.Orange, 16.sp)
         }
         MenuLabel("BEST ${formatPoints(result.bestPoints)}")
+        result.rankUp?.let { MenuLabel("RANK UP!  RANK ${it.to}", NeonPalette.Lime, 22.sp) }
         RankPanel(rank)
         Spacer(Modifier.height(16.dp))
         if (onNextLevel != null) NeonButton("NEXT LEVEL", onNextLevel, color = NeonPalette.Lime)

@@ -7,9 +7,14 @@ import kotlinx.cinterop.usePinned
 import platform.AVFAudio.AVAudioPlayer
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryAmbient
+import platform.AVFAudio.AVAudioSessionInterruptionNotification
 import platform.Foundation.NSData
+import platform.Foundation.NSNotificationCenter
+import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSUserDefaults
 import platform.Foundation.create
+import platform.UIKit.UIApplicationDidEnterBackgroundNotification
+import platform.UIKit.UIApplicationWillEnterForegroundNotification
 import platform.UIKit.UIImpactFeedbackGenerator
 import platform.UIKit.UIImpactFeedbackStyle
 
@@ -24,11 +29,22 @@ private val shared: PlatformServices by lazy {
 /** The iOS services, created once per app run. */
 fun createPlatformServices(): PlatformServices = shared
 
-/** Sound effects through AVAudioPlayer, with a few players per effect so quick hits overlap. */
+/**
+ * Sound effects through AVAudioPlayer, with a few players per effect so quick hits overlap, and
+ * the music through one looping player. The music pauses while the app is in the background.
+ */
 @OptIn(ExperimentalForeignApi::class)
 internal class AvAudio : ToggleableAudio() {
     private val players: Map<SoundEffect, List<AVAudioPlayer>>
     private val next = mutableMapOf<SoundEffect, Int>()
+
+    // Built the first time music is wanted, so starting the app doesn't wait on it.
+    private val music: AVAudioPlayer? by lazy {
+        AVAudioPlayer(data = ChipMusic.wav().toNSData(), error = null).apply {
+            numberOfLoops = -1 // forever
+            prepareToPlay()
+        }
+    }
 
     init {
         // Ambient: mixes with the player's own music and respects the silent switch.
@@ -37,6 +53,22 @@ internal class AvAudio : ToggleableAudio() {
             val data = ChipTones.wav(effect).toNSData()
             List(VOICES) { AVAudioPlayer(data = data, error = null).also { it.prepareToPlay() } }
         }
+        val center = NSNotificationCenter.defaultCenter
+        val main = NSOperationQueue.mainQueue
+        center.addObserverForName(UIApplicationDidEnterBackgroundNotification, null, main) { _ -> setAppActive(false) }
+        center.addObserverForName(UIApplicationWillEnterForegroundNotification, null, main) { _ -> setAppActive(true) }
+        // A call or alarm pauses the player; carry on with the loop once it is over.
+        center.addObserverForName(AVAudioSessionInterruptionNotification, null, main) { _ ->
+            if (musicOn) music?.play()
+        }
+    }
+
+    override fun resumeMusic() {
+        music?.play()
+    }
+
+    override fun pauseMusic() {
+        music?.pause()
     }
 
     override fun playEffect(effect: SoundEffect) {
