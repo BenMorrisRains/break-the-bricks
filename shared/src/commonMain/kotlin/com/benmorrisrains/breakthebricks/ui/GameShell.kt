@@ -18,6 +18,8 @@ sealed interface Screen {
     data class Results(val result: GameResult) : Screen
     /** Settings, and the screen to go back to when they close. */
     data class Settings(val returnTo: Screen) : Screen
+    /** The offer to unlock paid [level] by the one-time purchase or an ad. */
+    data class Paywall(val level: Level) : Screen
 }
 
 /**
@@ -63,14 +65,46 @@ class GameShell(
         start(null, ability)
     }
 
+    /** Starts [level] once the level before it is passed; a paid level still locked shows the paywall first. */
     fun playLevel(level: Level) {
-        if (session.progress.isUnlocked(level.number)) start(level)
+        if (!session.progress.isUnlocked(level.number)) return
+        if (session.access.isPaywalled(level.number)) return openPaywall(level)
+        start(level)
+    }
+
+    private fun openPaywall(level: Level) {
+        session.quit()
+        session.access.clearAdMissed()
+        paused = false
+        screen = Screen.Paywall(level)
+        syncMusic()
+    }
+
+    /** The paywall's buy button: once the store says it's bought, the level starts. */
+    fun buyUnlock() {
+        session.unlock.buy { owned -> if (owned) startPaywalledLevel() }
+    }
+
+    /** The paywall's restore button: a restored purchase starts the level. */
+    fun restorePurchases() {
+        session.unlock.restore { owned -> if (owned) startPaywalledLevel() }
+    }
+
+    /** The paywall's ad button: once the ad pays out, the level is open for good and starts. */
+    fun watchAdForLevel() {
+        val paywall = screen as? Screen.Paywall ?: return
+        session.access.watchAdToUnlock(paywall.level.number) { opened -> if (opened) startPaywalledLevel() }
+    }
+
+    private fun startPaywalledLevel() {
+        val paywall = screen as? Screen.Paywall ?: return
+        if (!session.access.isPaywalled(paywall.level.number)) start(paywall.level)
     }
 
     /** After passing a level, plays the one after it, if there is one. */
     fun playNextLevel() {
         val next = nextLevel() ?: return
-        start(next)
+        playLevel(next)
     }
 
     /** The level after the one just passed, or null when there is none to go to. */

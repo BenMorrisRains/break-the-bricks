@@ -27,9 +27,10 @@ import com.benmorrisrains.breakthebricks.engine.Level
 private const val TILES_PER_ROW = 2
 
 /**
- * The 10 free levels as neon tiles with their stars, opened from home. A locked level shows
- * dim and can't be tapped until the one before it is passed. Below them, the abilities a game
- * can earn play their preview clips.
+ * The levels as neon tiles with their stars, opened from home. A locked level shows dim and
+ * can't be tapped until the one before it is passed. A paid level that is still [paywalled]
+ * says so, and tapping it opens the paywall. Below them, once [showsAbilityPreviews], the
+ * abilities a game can earn play their preview clips.
  */
 @Composable
 fun LevelSelectScreen(
@@ -37,6 +38,8 @@ fun LevelSelectScreen(
     onLevel: (Level) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    paywalled: (Int) -> Boolean = { false },
+    showsAbilityPreviews: Boolean = true,
 ) {
     Column(
         modifier.verticalScroll(rememberScrollState()),
@@ -49,23 +52,24 @@ fun LevelSelectScreen(
         for (row in progress.levels.chunked(TILES_PER_ROW)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 for (level in row) {
-                    LevelTile(level, progress, onLevel, Modifier.weight(1f))
+                    LevelTile(level, progress, paywalled(level.number), onLevel, Modifier.weight(1f))
                 }
                 // Keep a short last row's tiles the same width.
                 repeat(TILES_PER_ROW - row.size) { Box(Modifier.weight(1f)) }
             }
         }
-        LockedAbilities(Abilities.earnable, title = "ABILITIES TO EARN")
+        if (showsAbilityPreviews) LockedAbilities(Abilities.earnable, title = "ABILITIES TO EARN")
         NeonButton("BACK", onBack, color = NeonPalette.Cyan)
     }
 }
 
 @Composable
-private fun LevelTile(level: Level, progress: LevelProgress, onLevel: (Level) -> Unit, modifier: Modifier) {
+private fun LevelTile(level: Level, progress: LevelProgress, paywalled: Boolean, onLevel: (Level) -> Unit, modifier: Modifier) {
     val unlocked = progress.isUnlocked(level.number)
     val stars = progress.stars(level.number)
     val color = when {
         !unlocked -> NeonPalette.Dim
+        paywalled -> NeonPalette.Yellow
         stars == 3 -> NeonPalette.Lime
         stars > 0 -> NeonPalette.Cyan
         else -> NeonPalette.Magenta
@@ -82,7 +86,11 @@ private fun LevelTile(level: Level, progress: LevelProgress, onLevel: (Level) ->
             BasicText("${level.number}", style = neonText(color, 28.sp))
             BasicText(level.name.uppercase(), style = neonText(if (unlocked) NeonPalette.Ink else NeonPalette.Dim, 11.sp))
             BasicText(
-                if (unlocked) starText(stars) else "LOCKED",
+                when {
+                    !unlocked -> "LOCKED"
+                    paywalled -> "UNLOCK"
+                    else -> starText(stars)
+                },
                 style = neonText(if (unlocked) NeonPalette.Yellow else NeonPalette.Dim, 14.sp),
             )
         }

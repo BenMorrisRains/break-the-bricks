@@ -21,6 +21,20 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
+
+        // Ads and the one-time purchase (T12), from Gradle properties (gradle.properties,
+        // ~/.gradle/gradle.properties or -P). AdMob defaults to Google's public test IDs. With
+        // no RevenueCat key, debug builds use a fake store and release builds sell nothing.
+        // The key is RevenueCat's public Google SDK key (goog_...), never a secret key.
+        val revenueCatKey = providers.gradleProperty("revenueCatAndroidKey").getOrElse("")
+        val adMobAppId = providers.gradleProperty("adMobAndroidAppId").getOrElse("ca-app-pub-3940256099942544~3347511713")
+        val adMobRewardedUnit = providers.gradleProperty("adMobAndroidRewardedUnitId").getOrElse("ca-app-pub-3940256099942544/5224354917")
+        buildConfigField("String", "REVENUECAT_API_KEY", "\"$revenueCatKey\"")
+        buildConfigField("String", "ADMOB_REWARDED_AD_UNIT_ID", "\"$adMobRewardedUnit\"")
+        manifestPlaceholders["adMobAppId"] = adMobAppId
+    }
+    buildFeatures {
+        buildConfig = true
     }
     packaging {
         resources {

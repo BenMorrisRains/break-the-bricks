@@ -20,6 +20,21 @@
 	<string>1</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>GADApplicationIdentifier</key>
+	<string>$(ADMOB_APP_ID)</string>
+	<key>AdMobRewardedAdUnitID</key>
+	<string>$(ADMOB_REWARDED_AD_UNIT_ID)</string>
+	<key>RevenueCatApiKey</key>
+	<string>$(REVENUECAT_API_KEY)</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>This lets the game show ads that fit you better. You can still watch ads either way.</string>
+	<key>SKAdNetworkItems</key>
+	<array>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>cstr6suwn9.skadnetwork</string>
+		</dict>
+	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

@@ -33,7 +33,8 @@ import kotlin.random.Random
  *
  * During a game the player can watch a rewarded ad for one power-up ([watchAdForBoost]). It is
  * on for that game only, from the next shot, and never enters the [bank], so it can't be
- * staked (Ben, 2026-10-13). One ad boost per game (default not yet confirmed by Ben).
+ * staked (Ben, 2026-10-13). One ad boost per game (default not yet confirmed by Ben). An owner
+ * of the one-time [unlock] gets it without the ad.
  *
  * The seed is the only thing picked at random, and it is picked here, outside the engine; the
  * engine itself stays deterministic for a given seed and set of aims.
@@ -48,6 +49,20 @@ class GameSession(
 ) {
     /** Saved stars and best points of the levels. */
     val progress = LevelProgress(services.store)
+
+    /** The one-time purchase, re-checked with the store when the session starts. */
+    val unlock = FullUnlock(services.purchases, services.store).also { it.refresh() }
+
+    /** The paywall after the free levels. */
+    val access = LevelAccess(services.store, unlock, services.ads)
+
+    /**
+     * Locked-ability previews promote the next power-up once the player is into the paid
+     * levels, that is once the last free level is passed (Claude's default for "promotion in
+     * paid levels").
+     */
+    val showsAbilityPreviews: Boolean
+        get() = progress.stars(LevelAccess.FREE_LEVELS) >= 1
 
     /** The level being played, or null in free play. */
     var level: Level? by mutableStateOf<Level?>(null)
@@ -201,11 +216,16 @@ class GameSession(
     /**
      * Shows a rewarded ad and, if the player watches it, turns [ability] on for the rest of this
      * game from the next shot. [onDone] gets whether it was granted. An ad that finishes after
-     * the game was left grants nothing.
+     * the game was left grants nothing. An owner of the [unlock] skips the ad.
      */
     fun watchAdForBoost(ability: Ability, onDone: (granted: Boolean) -> Unit = {}) {
         if (ability !in boostOffers) return
         val game = engine
+        if (unlock.adRewardsFree) {
+            val granted = game.boost(ability)
+            if (granted) boostUsed = true
+            return onDone(granted)
+        }
         adShowing = true
         adMissed = false
         services.ads.show { rewarded ->

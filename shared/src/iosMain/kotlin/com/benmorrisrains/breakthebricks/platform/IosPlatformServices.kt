@@ -4,10 +4,13 @@ import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
+import kotlin.experimental.ExperimentalNativeApi
+import kotlin.native.Platform
 import platform.AVFAudio.AVAudioPlayer
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryAmbient
 import platform.AVFAudio.AVAudioSessionInterruptionNotification
+import platform.Foundation.NSBundle
 import platform.Foundation.NSData
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
@@ -18,16 +21,29 @@ import platform.UIKit.UIApplicationWillEnterForegroundNotification
 import platform.UIKit.UIImpactFeedbackGenerator
 import platform.UIKit.UIImpactFeedbackStyle
 
-private val shared: PlatformServices by lazy {
-    PlatformServices(
+private var shared: PlatformServices? = null
+
+/**
+ * The iOS services, created once per app run. The rewarded [ads] (AdMob, behind the App
+ * Tracking Transparency prompt) are built in Swift by the iOS app; the one-time purchase is
+ * RevenueCat, with its API key from the app's Info.plist (`RevenueCatApiKey`).
+ */
+@OptIn(ExperimentalNativeApi::class)
+fun createPlatformServices(ads: RewardedAds): PlatformServices {
+    shared?.let { return it }
+    val store = UserDefaultsStore(NSUserDefaults.standardUserDefaults)
+    val monetization = MonetizationConfig(
+        revenueCatApiKey = NSBundle.mainBundle.objectForInfoDictionaryKey("RevenueCatApiKey") as? String ?: "",
+        debug = Platform.isDebugBinary,
+    )
+    return PlatformServices(
         audio = AvAudio(),
         haptics = ImpactHaptics(),
-        store = UserDefaultsStore(NSUserDefaults.standardUserDefaults),
-    )
+        store = store,
+        ads = ads,
+        purchases = monetization.purchases(store, ::RevenueCatPurchases),
+    ).also { shared = it }
 }
-
-/** The iOS services, created once per app run. */
-fun createPlatformServices(): PlatformServices = shared
 
 /**
  * Sound effects through AVAudioPlayer, with a few players per effect so quick hits overlap, and

@@ -22,16 +22,21 @@ private var cached: PlatformServices? = null
  * The Android services. They live as long as the process, so activity recreation reuses the
  * same SoundPool instead of loading the sounds again. The music pauses while no activity of the
  * app is on screen.
+ *
+ * Ads come from AdMob and the one-time purchase from RevenueCat, set up by [monetization].
  */
-fun createPlatformServices(context: Context): PlatformServices {
+fun createPlatformServices(context: Context, monetization: MonetizationConfig = MonetizationConfig()): PlatformServices {
     cached?.let { return it }
-    val app = context.applicationContext
+    val app = context.applicationContext as Application
     val audio = SoundPoolAudio(app)
-    (app as? Application)?.registerActivityLifecycleCallbacks(VisibleActivities(audio::setAppActive))
+    app.registerActivityLifecycleCallbacks(VisibleActivities(audio::setAppActive))
+    val store = SharedPreferencesStore(app.getSharedPreferences("break_the_bricks", Context.MODE_PRIVATE))
     return PlatformServices(
         audio = audio,
         haptics = VibratorHaptics(app),
-        store = SharedPreferencesStore(app.getSharedPreferences("break_the_bricks", Context.MODE_PRIVATE)),
+        store = store,
+        ads = AdMobRewardedAds(app, monetization.rewardedAdUnitId.ifBlank { AdMobRewardedAds.TEST_AD_UNIT_ID }),
+        purchases = monetization.purchases(store, ::RevenueCatPurchases),
     ).also { cached = it }
 }
 

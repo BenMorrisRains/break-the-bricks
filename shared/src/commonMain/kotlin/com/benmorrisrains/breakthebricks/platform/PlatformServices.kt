@@ -35,12 +35,16 @@ interface KeyValueStore {
     fun putString(key: String, value: String)
 }
 
-/** Bundle handed to the UI. The defaults do nothing (the fake ad pays out at once), for previews and tests. */
+/**
+ * Bundle handed to the UI. The defaults do nothing (the fake ad pays out at once and the fake
+ * store sells the unlock at once), for previews and tests.
+ */
 class PlatformServices(
     val audio: AudioPlayer = NoOpAudio,
     val haptics: Haptics = NoOpHaptics,
     val store: KeyValueStore = InMemoryStore(),
     val ads: RewardedAds = FakeRewardedAds,
+    val purchases: Purchases = FakePurchases(),
 )
 
 object NoOpAudio : AudioPlayer {
