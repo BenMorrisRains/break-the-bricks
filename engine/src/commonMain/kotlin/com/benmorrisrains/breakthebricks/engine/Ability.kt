@@ -39,10 +39,12 @@ interface AbilityContext {
     fun breakBrick(column: Int, row: Int)
 
     /**
-     * Adds [extraBalls] normal balls beside the round's first ball once its current step is done,
-     * aimed [spreadRadians] apart either side of it. They fly for this round only.
+     * Once its current step is done, adds [extraBalls] normal balls at the round's first ball and
+     * sends all of them, the first ball too, off in seeded random directions up to
+     * [maxTurnRadians] either side of its heading, each in its own slice of that range so they
+     * fan out. The new balls fly for this round only.
      */
-    fun splitFirstBall(extraBalls: Int, spreadRadians: Float)
+    fun splitFirstBall(extraBalls: Int, maxTurnRadians: Float)
 }
 
 /** Abilities a game can earn by reaching their [Ability.earnedAtRound], in round order. */

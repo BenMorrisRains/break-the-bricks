@@ -2,7 +2,9 @@ package com.benmorrisrains.breakthebricks.engine
 
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.floor
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.test.Test
@@ -129,7 +131,7 @@ class AbilitiesTest {
             damaged += column to row
         }
         override fun breakBrick(column: Int, row: Int) = Unit
-        override fun splitFirstBall(extraBalls: Int, spreadRadians: Float) = Unit
+        override fun splitFirstBall(extraBalls: Int, maxTurnRadians: Float) = Unit
     }
 
     private fun bigBallHit(x: Float, y: Float, column: Int, row: Int): List<Pair<Int, Int>> {
@@ -186,14 +188,16 @@ class AbilitiesTest {
         }
         assertEquals(3, mostBalls)
         assertEquals(1, game.drainEvents().count { it is GameEvent.AbilityTriggered })
-        // Bounced straight down; the new balls fly at the same speed, turned either side of it.
+        // It bounced straight down; all three fly at the same speed, each turned from straight
+        // down by up to the max turn, one in each third of that range so they fan out.
         val speed = game.config.ballSpeed
-        assertTrue(abs(splitVelocities[0].first) < 1e-3f && abs(splitVelocities[0].second - speed) < 1e-3f)
-        for ((vx, vy) in splitVelocities.drop(1)) {
+        val max = Splitter.MAX_TURN_RADIANS
+        val turns = splitVelocities.map { (vx, vy) ->
             assertTrue(abs(sqrt(vx * vx + vy * vy) - speed) < 1e-3f)
-            assertTrue(abs(abs(vx) - sin(Splitter.SPREAD_RADIANS) * speed) < 1e-3f)
+            atan2(vy, vx) - (PI / 2).toFloat()
         }
-        assertTrue(splitVelocities[1].first * splitVelocities[2].first < 0f, "one goes each way")
+        assertTrue(turns.all { it in -max..max }, "turns $turns")
+        assertEquals(setOf(0, 1, 2), turns.map { floor((it + max) / (2 * max / 3)).toInt().coerceIn(0, 2) }.toSet())
         // Next round there are 2 balls again, not 4.
         assertEquals(2, game.balls.size)
         assertEquals(2, game.ballCount)
@@ -215,10 +219,10 @@ class AbilitiesTest {
     @Test
     fun splitBallsNeverFlyFlatterThanTheSmallestAimAngle() {
         lateinit var game: BrickGame
-        // The first ball hits while flying one spread above flat, so one new ball would fly flat.
+        // The first ball hits while flying nearly flat, so most turns would leave a ball flatter.
         val physics = BallPhysics { ball, _, config, _, contacts ->
-            ball.vx = cos(Splitter.SPREAD_RADIANS) * config.ballSpeed
-            ball.vy = -sin(Splitter.SPREAD_RADIANS) * config.ballSpeed
+            ball.vx = cos(0.05f) * config.ballSpeed
+            ball.vy = -sin(0.05f) * config.ballSpeed
             contacts.brickHit(0, 0)
             false
         }
@@ -229,7 +233,36 @@ class AbilitiesTest {
         val config = game.config
         val minVy = sin(config.minAimAngle) * config.ballSpeed
         assertEquals(3, game.balls.size)
-        for (ball in game.balls.drop(1)) assertTrue(abs(ball.vy) >= minVy - 1e-4f, "vy ${ball.vy}")
+        for (ball in game.balls) assertTrue(abs(ball.vy) >= minVy - 1e-4f, "vy ${ball.vy}")
+    }
+
+    /** The three balls' velocities right after the split, for a game on [seed]. */
+    private fun splitDirections(seed: Long): List<Pair<Float, Float>> {
+        val game = BrickGame(seed = seed, physics = GridPhysics, abilities = listOf(Splitter), earnable = emptyList())
+        game.board.clear()
+        game.board[3, 2] = Brick(3, 2, 50)
+        var split: List<Pair<Float, Float>> = emptyList()
+        playRound(game, straightUp) {
+            if (split.isEmpty() && game.balls.size == 3) split = game.balls.map { it.vx to it.vy }
+        }
+        return split
+    }
+
+    @Test
+    fun splitDirectionsAreSeededRandom() {
+        assertEquals(splitDirections(seed = 7), splitDirections(seed = 7))
+        val seeds = (1L..6L).map { splitDirections(it) }
+        assertTrue(seeds.toSet().size > 1, "different seeds scatter the balls differently")
+    }
+
+    @Test
+    fun aSplitNeverChangesTheRowsThatCome() {
+        fun nextRow(abilities: List<Ability>): List<Pair<Int, Long>> {
+            val game = gameWith(abilities, GridPhysics, Triple(3, 2, 50L))
+            playRound(game, straightUp)
+            return game.board.bricks().filter { it.row == 0 }.map { it.column to it.hits }.sortedBy { it.first }.toList()
+        }
+        assertEquals(nextRow(emptyList()), nextRow(listOf(Splitter)))
     }
 
     @Test

@@ -2,7 +2,8 @@ package com.benmorrisrains.breakthebricks.engine
 
 /**
  * The splitter (Ben: earned at round 10). On its first brick hit the round's first ball splits
- * into 3: it carries on bouncing as usual and two normal balls fly off either side of it.
+ * into 3, and all three fly off wildly in different, seeded random directions (Ben's playtest,
+ * 2026-10-13: "go kind of crazy in different directions").
  */
 object Splitter : Ability {
     override val id = "splitter"
@@ -12,10 +13,10 @@ object Splitter : Ability {
     /** Balls added on the split, so 3 in all. */
     const val EXTRA_BALLS = 2
 
-    /** Angle between the first ball and each new ball, in radians (about 17 degrees). */
-    const val SPREAD_RADIANS = 0.3f
+    /** Furthest a ball turns from the first ball's heading, in radians (about 75 degrees). */
+    const val MAX_TURN_RADIANS = 1.3f
 
     override fun onFirstHit(context: AbilityContext, column: Int, row: Int) {
-        context.splitFirstBall(EXTRA_BALLS, SPREAD_RADIANS)
+        context.splitFirstBall(EXTRA_BALLS, MAX_TURN_RADIANS)
     }
 }
