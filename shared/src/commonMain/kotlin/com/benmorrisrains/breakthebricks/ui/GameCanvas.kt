@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -190,17 +191,19 @@ private fun DrawScope.drawAimLine(engine: GameEngine, layout: FieldLayout) {
 
 /**
  * Balls are white, drawn at their own size (the big ball is twice as big); a drilling ball has a
- * yellow ring. While [grenadeArmed], the round's first ball is drawn as a hand grenade, its fuse
- * sparking by [effectsTime] once it flies.
+ * yellow ring. Once the splitter fires, the three balls of the split each get their own neon
+ * color (see [splitBallTint]). While [grenadeArmed], the round's first ball is drawn as a hand
+ * grenade, its fuse sparking by [effectsTime] once it flies.
  */
 private fun DrawScope.drawBalls(engine: GameEngine, layout: FieldLayout, grenadeArmed: Boolean, effectsTime: Float?) {
     val config = engine.config
     val grenade = engine.balls.firstOrNull()?.takeIf { grenadeArmed }
-    for (ball in engine.balls) {
+    for ((index, ball) in engine.balls.withIndex()) {
         val isGrenade = ball === grenade
+        val tint = splitBallTint(index, engine.ballCount, engine.balls.size)?.let(NeonPalette::tint)
         when (ball.state) {
-            BallState.Flying -> drawBall(ball.x, ball.y, layout, config, trailOf = ball, isGrenade = isGrenade, sparkTime = effectsTime, size = ball.size, drilling = ball.pierce > 0)
-            BallState.Landed -> drawBall(ball.x, ball.y, layout, config, size = ball.size)
+            BallState.Flying -> drawBall(ball.x, ball.y, layout, config, trailOf = ball, isGrenade = isGrenade, sparkTime = effectsTime, size = ball.size, drilling = ball.pierce > 0, tint = tint)
+            BallState.Landed -> drawBall(ball.x, ball.y, layout, config, size = ball.size, tint = tint)
             BallState.Waiting -> Unit
         }
     }
@@ -221,10 +224,11 @@ private fun DrawScope.drawBall(
     sparkTime: Float? = null,
     size: Float = 1f,
     drilling: Boolean = false,
+    tint: Color? = null,
 ) {
     val r = config.ballRadius * size * layout.cell
     val center = Offset(layout.toScreenX(x), layout.toScreenY(y))
-    val color = if (isGrenade) NeonPalette.Orange else NeonPalette.Ink
+    val color = if (isGrenade) NeonPalette.Orange else tint ?: NeonPalette.Ink
     if (trailOf != null) {
         val speed = hypot(trailOf.vx, trailOf.vy)
         if (speed > 0f) {

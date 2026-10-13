@@ -23,6 +23,21 @@ fun brickTier(hits: Long, roundValue: Long, tiers: Int): Int {
     return (ratio * (tiers - 1)).toInt()
 }
 
+/**
+ * The color of ball [index] of [total] when a round fires [ballCount]: after a split the engine
+ * adds the new balls past [ballCount], so the three balls of the split are the first ball and
+ * those. They get magenta, cyan and lime so they stand out from the white balls (Ben's playtest).
+ * Null for a normal white ball.
+ */
+fun splitBallTint(index: Int, ballCount: Int, total: Int): Tint? = when {
+    total <= ballCount -> null
+    index == 0 -> Tint.Magenta
+    index >= ballCount -> SplitTints[(index - ballCount) % SplitTints.size]
+    else -> null
+}
+
+private val SplitTints = listOf(Tint.Cyan, Tint.Lime)
+
 /** How a particle is drawn: a square neon pixel, or a streak along its motion (shrapnel). */
 enum class ParticleShape { Pixel, Streak }
 
