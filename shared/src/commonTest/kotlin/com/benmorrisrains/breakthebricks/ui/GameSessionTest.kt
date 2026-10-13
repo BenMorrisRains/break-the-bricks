@@ -12,6 +12,7 @@ import com.benmorrisrains.breakthebricks.engine.GameEvent
 import com.benmorrisrains.breakthebricks.engine.PlayerRank
 import com.benmorrisrains.breakthebricks.engine.RoundPhase
 import com.benmorrisrains.breakthebricks.platform.AudioPlayer
+import com.benmorrisrains.breakthebricks.platform.ChipMusic
 import com.benmorrisrains.breakthebricks.platform.HapticStrength
 import com.benmorrisrains.breakthebricks.platform.Haptics
 import com.benmorrisrains.breakthebricks.platform.InMemoryStore
@@ -47,8 +48,10 @@ class GameSessionTest {
     private class Recorder : AudioPlayer, Haptics {
         val sounds = mutableListOf<SoundEffect>()
         val taps = mutableListOf<HapticStrength>()
+        val tracks = mutableListOf<Int>()
         override fun play(effect: SoundEffect) { sounds += effect }
         override fun setMusicPlaying(playing: Boolean) = Unit
+        override fun setMusicTrack(track: Int) { tracks += track }
         override fun setMusicEnabled(enabled: Boolean) = Unit
         override fun setEffectsEnabled(enabled: Boolean) = Unit
         override fun tap(strength: HapticStrength) { taps += strength }
@@ -255,5 +258,17 @@ class GameSessionTest {
         session.onFrame(0.016f, listOf(GameEvent.GameOver(round = 3, points = 20)))
         assertNull(session.rankUp)
         assertEquals(PlayerRank(20), session.playerRank)
+    }
+
+    @Test
+    fun eachGamePlaysTheNextMusicTrackAndTheRotationSurvivesARestart() {
+        val count = ChipMusic.tracks.size
+        val first = session(mutableListOf())
+        repeat(count + 1) { first.newGame(FreeLevels[1]) }
+        assertEquals((0 until count).toList() + 0, recorder.tracks, "in order, wrapping around")
+
+        recorder.tracks.clear()
+        session(mutableListOf()).newGame(FreeLevels[1])
+        assertEquals(listOf(1), recorder.tracks, "a new app run carries on from the saved track")
     }
 }

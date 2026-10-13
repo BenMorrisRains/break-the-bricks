@@ -12,6 +12,7 @@ class GameSettingsTest {
         var haptics: Boolean? = null
         override fun play(effect: SoundEffect) = Unit
         override fun setMusicPlaying(playing: Boolean) = Unit
+        override fun setMusicTrack(track: Int) = Unit
         override fun setMusicEnabled(enabled: Boolean) { music = enabled }
         override fun setEffectsEnabled(enabled: Boolean) { effects = enabled }
         override fun tap(strength: HapticStrength) = Unit
