@@ -58,14 +58,14 @@ fun finishCard(engine: GameEngine, level: Level?): FinishCard? {
     return FinishCard(if (passed) "LEVEL ${level.number} CLEAR" else "GAME OVER", note, "TAP TO CONTINUE", won = passed)
 }
 
-/** Text shown over the field before a level's first shot. [hint] names a lent power-up when the level has one. */
+/** Text shown over the field before a level's first shot. [hint] names a lent power-up, and that it has one shot, when the level has one. */
 data class IntroCard(val title: String, val name: String, val hint: String)
 
 /** The intro for [level] while its first shot is still to come, else null (and always null in free play). */
 fun levelIntro(engine: GameEngine, level: Level?): IntroCard? {
     if (level == null || engine.round != 1 || engine.phase != RoundPhase.Aiming) return null
     val power = level.power
-    val hint = if (power == null) "BREAK EVERY BRICK" else "TRY THE ${abilityName(power.id)}: IT'S YOURS THIS LEVEL"
+    val hint = if (power == null) "BREAK EVERY BRICK" else "TAP THE ${abilityName(power.id)} TO USE IT: ONE SHOT THIS LEVEL"
     return IntroCard("LEVEL ${level.number}", level.name.uppercase(), hint)
 }
 

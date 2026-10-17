@@ -17,20 +17,23 @@ class PaidLevelsTest {
         assertTrue(FreeLevels.all.none { it.isPaid })
     }
 
-    /** Claude's default (T18): a few levels lend one power-up each, and every power-up gets one. */
+    /** Claude's default (T18): a few levels lend one power-up each, one for each of Ben's first four. */
     @Test
     fun eachPowerUpHasAShowcaseLevel() {
         val showcases = PaidLevels.all.filter { it.power != null }
-        assertEquals(Abilities.earnable, showcases.map { it.power })
+        assertEquals(listOf(BigBall, Splitter, Drill, GrenadeBall), showcases.map { it.power })
         assertTrue(FreeLevels.all.none { it.power != null })
     }
 
+    /** A lent power-up can be picked from the first shot, but none is picked until the player picks it. */
     @Test
-    fun aLentPowerUpIsActiveFromTheFirstShot() {
+    fun aLentPowerUpIsThereFromTheFirstShot() {
         for (level in PaidLevels.all) {
             val game = level.newGame(GridPhysics)
             assertEquals(RoundPhase.Aiming, game.phase, "level ${level.number}")
             assertEquals(listOfNotNull(level.power), game.activeAbilities, "level ${level.number}")
+            assertEquals(null, game.selectedAbility)
+            level.power?.let { game.selectAbility(it.id) }
             assertEquals(level.power, game.selectedAbility)
         }
         // A staked or boosted copy of the same power-up doesn't make it act twice.
@@ -95,7 +98,7 @@ class PaidLevelsTest {
     fun theBotsShotsReplayExactly() {
         val level = PaidLevels.all.first { it.power == Splitter }
         val run = botRuns.getValue(level.number)
-        val replay = LevelBot.replay(level, run.angles)
+        val replay = LevelBot.replay(level, run.angles, picks = run.picks)
         assertEquals(run.game.points, replay.points)
         assertEquals(run.game.phase, replay.phase)
         assertFalse(replay.board.bricks().any())

@@ -24,8 +24,8 @@ data class Level(
     /** New rows are worth what they would be this many rounds later, for tougher rows sooner. */
     val valuesAhead: Int = 0,
     /**
-     * A power-up this level shows off: it is active from the first shot, for this level only, on
-     * top of any the game earns. It is lent, not earned, so it never reaches the inventory.
+     * A power-up this level shows off: it can be picked from the first shot, for this level only,
+     * on top of any the game earns. It is lent, not earned, so it never reaches the inventory.
      */
     val power: Ability? = null,
 ) {
@@ -48,7 +48,11 @@ data class Level(
     /** Paid levels come after the free ones and open only once bought or unlocked by ads. */
     val isPaid: Boolean get() = number > FreeLevels.COUNT
 
-    /** A new attempt at this level. Abilities are earned as in any game; [power] is active from the start. */
+    /**
+     * A new attempt at this level. Abilities are earned as in any game and [power] is there from
+     * the start, but each power-up acts on one shot only (Ben, 2026-10-17: using one every shot
+     * made levels too easy), so the player picks when.
+     */
     fun newGame(
         physics: BallPhysics,
         abilities: List<Ability> = emptyList(),
@@ -62,6 +66,7 @@ data class Level(
         earnable = earnable,
         layout = layout,
         levelRows = rowCount,
+        singleUsePowerUps = true,
     )
 
     /** Stars for a finished attempt: 0 if it failed, else 1 to 3 by how few rounds the clear took. */

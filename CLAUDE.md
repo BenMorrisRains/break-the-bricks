@@ -17,7 +17,7 @@ If code and the doc disagree, the doc wins; if the doc is silent, ask Ben in you
 - All randomness goes through `SeededRandom`. Never use `kotlin.random`, `Math.random` or the time in game logic.
 - Physics runs at a fixed `GameConfig.STEPS_PER_SECOND`. Frame time is only fed to `GameEngine.advance`.
 - The same seed plus the same inputs must always give the same game. Keep it that way, and test it.
-- The UI reads engine state and drains `GameEvent`s. It never changes game state except through `aim`, `selectAbility`, `fire`, `boost` and `redirect` (a time-freeze swipe).
+- The UI reads engine state and drains `GameEvent`s. It never changes game state except through `aim`, `selectAbility`, `unselectAbility`, `fire`, `boost` and `redirect` (a time-freeze swipe).
 - Colors come only from `NeonPalette`. No color literals elsewhere.
 - Platform features (sound, haptics, storage, purchases, ads) sit behind the interfaces in `shared/.../platform`. Common code never calls platform APIs directly.
 - Abilities plug in through the `Ability` interface. Don't special-case an ability inside the physics.
@@ -28,8 +28,10 @@ If code and the doc disagree, the doc wins; if the doc is silent, ask Ben in you
 - The aim line is short and straight. Never show a bounce or trajectory preview.
 - No timer. A round ends when every ball is back; the game ends when a brick reaches the floor row.
 - The launch point for the next round is where the first ball landed.
-- Points: each hit takes 1 off a brick and scores 1 point. New-row values are the Fibonacci number for the round divided by 8, rounded up (Ben, 2026-10-12 playtests): 1 for rounds 1 to 6, then 2, 3, 5, 7, 12, 18, 30, ...
-- Power-ups (Ben's lineup, 2026-10-13). Each is earned at its round and stays available for the rest of the game; its wager target is 5 rounds later. One power-up acts per shot, on that round's first ball: with more than one earned, the player taps one in the HUD tray while aiming to pick it, and the pick stays until changed (Ben, 2026-10-13: switch power-ups before shooting):
+- Points: each hit takes 1 off a brick and scores 1 point. New-row values are the Fibonacci number divided by 8, rounded up (Ben, 2026-10-12 playtests), at half speed so each value lasts two rounds (Ben, 2026-10-17: values still climbed too quickly): 1 for rounds 1 to 12, then 2, 2, 3, 3, 5, 5, 7, 7, 12, 12, ...
+- A new row is never a single brick: at least 2 per row in free play and every level (Ben, 2026-10-17: more bricks per row).
+- Power-ups (Ben's lineup, 2026-10-13). Each is earned at its round and stays available for the rest of the game; its wager target is 5 rounds later. One power-up acts per shot, on that round's first ball: with more than one earned, the player taps one in the HUD tray while aiming to pick it, and the pick stays until changed (Ben, 2026-10-13: switch power-ups before shooting).
+- In a level, each power-up (lent, earned or from an ad) acts on one shot only (Ben, 2026-10-17: using it every shot made levels too easy). Nothing is picked until the player taps it; a second tap unpicks it; once used it stays dim in the tray. Free play keeps the every-shot rule. The lineup:
   - Big ball, round 5 (target 10): the first ball is three times the normal size, and a face hit that overhangs the next brick hits that brick too (Ben, 2026-10-13 playtest: big enough to hit two bricks at a time).
   - Splitter, round 10 (target 15): the first ball splits into 3 on its first hit, and all three fly off in seeded random directions up to about 75 degrees either side of its heading (Ben, 2026-10-13 playtest: "go kind of crazy in different directions").
   - Drill, round 20 (target 25): the first ball breaks every brick it touches, whatever its number, and leaves through the top wall instead of bouncing back (Ben, 2026-10-13). The other balls set the launch point.
@@ -40,7 +42,7 @@ If code and the doc disagree, the doc wins; if the doc is silent, ask Ben in you
   - The earn rounds for ghost ball, time freeze and 5-way splitter are Claude's default (every 10 rounds), not yet confirmed by Ben.
 - No real-money wagers. Players stake earned abilities. A wager is won by reaching the ability's target round.
 - Abilities are never sold for money.
-- In a game, the player can watch a rewarded ad for one power-up (Ben, 2026-10-13). It lasts that game only, starts on the next shot, and never enters the inventory, so it can't be staked. One per game (Claude's default).
+- In a game, the player can watch a rewarded ad for one power-up (Ben, 2026-10-13). It lasts that game only (one shot, in a level), starts on the next shot, and never enters the inventory, so it can't be staked. One per game (Claude's default).
 
 ## Tests
 
