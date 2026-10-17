@@ -3,9 +3,11 @@ package com.benmorrisrains.breakthebricks.engine
 import kotlin.math.PI
 
 /**
- * A simple greedy player for checking levels: each round it tries a fan of angles, replays the
- * level from the start with each one, and keeps the angle that leaves the safest board.
- * Deterministic, so it gives the same result every run.
+ * A simple greedy player for checking levels: each round it tries a fan of angles, each with no
+ * power-up and with each power-up it still has, replays the level from the start with each,
+ * and keeps the shot that leaves the safest board. A power-up acts on one shot per level, so
+ * the bot spends it on the round where it helps most right away. Deterministic, so it gives
+ * the same result every run.
  */
 object LevelBot {
     private const val ANGLE_COUNT = 25
@@ -14,24 +16,36 @@ object LevelBot {
         margin + i * (PI.toFloat() - 2 * margin) / (ANGLE_COUNT - 1)
     }
 
-    class Run(val game: BrickGame, val angles: List<Float>)
+    /** A finished run: the [angles] fired and the power-up [picks] (null for none), one per round. */
+    class Run(val game: BrickGame, val angles: List<Float>, val picks: List<String?>)
 
     fun play(level: Level, physics: BallPhysics = GridPhysics): Run {
         val chosen = mutableListOf<Float>()
+        val picks = mutableListOf<String?>()
+        var game = level.newGame(physics)
         while (true) {
-            val (angle, game) = angles
-                .map { it to replay(level, chosen + it, physics) }
+            val options = listOf<String?>(null) + game.activeAbilities.map { it.id }.filter { it !in game.spentAbilities }
+            val (shot, next) = options
+                .flatMap { pick -> angles.map { it to pick } }
+                .map { shot -> shot to replay(level, chosen + shot.first, physics, picks + shot.second) }
                 .maxBy { (_, game) -> score(game) }
-            chosen += angle
-            if (game.phase.isFinished) return Run(game, chosen)
+            chosen += shot.first
+            picks += shot.second
+            game = next
+            if (game.phase.isFinished) return Run(game, chosen, picks)
         }
     }
 
-    /** Plays [level] firing [shots] in order, one per round, stepping until each round is over. */
-    fun replay(level: Level, shots: List<Float>, physics: BallPhysics = GridPhysics): BrickGame {
+    /**
+     * Plays [level] firing [shots] in order, one per round, with the power-up in [picks] at the
+     * same index (none when null or missing), stepping until each round is over.
+     */
+    fun replay(level: Level, shots: List<Float>, physics: BallPhysics = GridPhysics, picks: List<String?> = emptyList()): BrickGame {
         val game = level.newGame(physics)
-        for (angle in shots) {
+        for ((index, angle) in shots.withIndex()) {
             if (game.phase != RoundPhase.Aiming) break
+            val pick = picks.getOrNull(index)
+            if (pick == null) game.unselectAbility() else game.selectAbility(pick)
             game.aim(angle)
             game.fire()
             var steps = 0

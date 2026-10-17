@@ -13,9 +13,9 @@ class DifficultyTest {
     fun rankOneIsTheGentleStart() {
         val config = Difficulty.forRank(1)
         assertEquals(1, config.startingRows)
-        assertEquals(1, config.minBricksPerRow)
-        assertEquals(3, config.maxBricksPerRow)
-        assertEquals((1..10).map { RowValues.FibonacciEighths.valueFor(it) }, (1..10).map { config.rowValues.valueFor(it) })
+        assertEquals(2, config.minBricksPerRow, "a row is never a single brick")
+        assertEquals(4, config.maxBricksPerRow)
+        assertEquals((1..10).map { RowValues.FibonacciEighthsHalfSpeed.valueFor(it) }, (1..10).map { config.rowValues.valueFor(it) })
         assertEquals(GameConfig().columns, config.columns)
     }
 
@@ -26,20 +26,20 @@ class DifficultyTest {
     }
 
     @Test
-    fun bricksPerRowRiseWithRankUpToFive() {
+    fun bricksPerRowRiseWithRankUpToSix() {
         fun bounds(rank: Int) = Difficulty.forRank(rank).let { it.minBricksPerRow to it.maxBricksPerRow }
-        assertEquals(1 to 3, bounds(19))
-        assertEquals(1 to 4, bounds(20))
-        assertEquals(2 to 4, bounds(30))
-        assertEquals(2 to 5, bounds(40))
-        assertEquals(3 to 5, bounds(60))
-        assertEquals(5 to 5, bounds(120))
-        assertEquals(5 to 5, bounds(1000))
+        assertEquals(2 to 4, bounds(19))
+        assertEquals(2 to 5, bounds(20))
+        assertEquals(3 to 5, bounds(30))
+        assertEquals(3 to 6, bounds(40))
+        assertEquals(4 to 6, bounds(60))
+        assertEquals(6 to 6, bounds(120))
+        assertEquals(6 to 6, bounds(1000))
     }
 
     @Test
     fun rowValuesStartOneRoundAheadEvery10RanksUpToFive() {
-        val eighths = RowValues.FibonacciEighths
+        val eighths = RowValues.FibonacciEighthsHalfSpeed
         assertEquals(eighths.valueFor(1), Difficulty.forRank(9).rowValues.valueFor(1))
         assertEquals(eighths.valueFor(2), Difficulty.forRank(10).rowValues.valueFor(1))
         assertEquals(eighths.valueFor(6), Difficulty.forRank(50).rowValues.valueFor(1))
@@ -70,11 +70,11 @@ class DifficultyTest {
         val rank50 = BrickGame(Difficulty.forRank(50), seed = 4, physics = TestPhysics())
         assertEquals(setOf(0), rank1.board.bricks().map { it.row }.toSet())
         assertEquals(setOf(0, 1, 2), rank50.board.bricks().map { it.row }.toSet())
-        val firstRowValue = RowValues.FibonacciEighths.valueFor(6)
+        val firstRowValue = RowValues.FibonacciEighthsHalfSpeed.valueFor(6)
         assertTrue(rank50.board.bricks().all { it.hits == firstRowValue })
         for (row in 0..2) {
             val count = rank50.board.bricks().count { it.row == row }
-            assertTrue(count in 2..5, "row $row has $count bricks")
+            assertTrue(count in 3..6, "row $row has $count bricks")
         }
         assertEquals(listOf<GameEvent>(GameEvent.RoundStarted(1, 1)), rank50.drainEvents())
     }

@@ -115,9 +115,9 @@ class LevelTest {
 
     @Test
     fun valuesAheadMakeNewRowsWorthLaterRounds() {
-        val game = level.copy(valuesAhead = 8).newGame(DropPhysics { 3.5f })
+        val game = level.copy(valuesAhead = 16).newGame(DropPhysics { 3.5f })
         val newRow = game.board.bricks().filter { it.row == 0 }.toList()
-        // Round 1 is worth what round 9 is worth: fibonacci(9) = 34, / 8 rounded up = 5.
+        // Round 1 is worth what round 17 is worth: at half speed that's fibonacci(9) = 34, / 8 rounded up = 5.
         assertTrue(newRow.isNotEmpty() && newRow.all { it.hits == 5L })
         assertEquals(1L, level.newGame(DropPhysics { 3.5f }).board.bricks().first { it.row == 0 }.hits)
     }

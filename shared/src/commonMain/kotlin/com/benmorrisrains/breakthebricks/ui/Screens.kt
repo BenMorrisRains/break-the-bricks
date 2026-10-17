@@ -42,7 +42,7 @@ fun HomeScreen(
 /**
  * Over the paused game. It covers the whole field and swallows touches, so nothing behind it
  * can aim or fire. With [boostOffers], it also offers one power-up for this game for watching
- * an ad; [adMissed] says the last ad didn't pay out.
+ * an ad, on [boostTerms]; [adMissed] says the last ad didn't pay out.
  */
 @Composable
 fun PauseMenu(
@@ -55,6 +55,7 @@ fun PauseMenu(
     boostOffers: List<Ability> = emptyList(),
     onBoost: (Ability) -> Unit = {},
     adMissed: Boolean = false,
+    boostTerms: String = BOOST_TERMS,
 ) {
     val blocker = remember { MutableInteractionSource() }
     MenuColumn(
@@ -67,7 +68,7 @@ fun PauseMenu(
         if (choosingBoost && boostOffers.isNotEmpty()) {
             MenuTitle("POWER-UP", NeonPalette.Yellow)
             MenuLabel(BOOST_HEADING, NeonPalette.Ink)
-            MenuLabel(BOOST_TERMS, NeonPalette.Cyan, 12.sp)
+            MenuLabel(boostTerms, NeonPalette.Cyan, 12.sp)
             if (adMissed) MenuLabel(BOOST_AD_MISSED, NeonPalette.Orange, 12.sp)
             for (ability in boostOffers) NeonButton(boostButtonText(ability), { onBoost(ability) }, color = NeonPalette.Yellow)
             NeonButton("BACK", { choosingBoost = false }, color = NeonPalette.Cyan)

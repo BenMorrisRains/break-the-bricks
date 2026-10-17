@@ -31,6 +31,12 @@ class BrickGame(
     layout: List<List<Long?>> = emptyList(),
     /** For a level, the rounds that bring a new row; then the board must be cleared. Null for an endless game. */
     override val levelRows: Int? = null,
+    /**
+     * Each power-up acts on one shot only, then is spent for the rest of the game, and none is
+     * picked until the player picks one (Ben, 2026-10-17, for levels). False for free play,
+     * where the picked power-up acts on every shot.
+     */
+    override val singleUsePowerUps: Boolean = false,
 ) : GameEngine {
     private val random = SeededRandom(seed)
 
@@ -45,7 +51,12 @@ class BrickGame(
     override val activeAbilities: List<Ability> get() = abilityList
     private var selectedId: String? = null
     override val selectedAbility: Ability?
-        get() = abilityList.firstOrNull { it.id == selectedId } ?: abilityList.firstOrNull()
+        get() = abilityList.firstOrNull { it.id == selectedId }
+            ?: if (singleUsePowerUps) null else abilityList.firstOrNull()
+
+    /** With [singleUsePowerUps], the power-ups whose one shot is used; they can't be picked again. */
+    override val spentAbilities: Set<String> get() = spent
+    private val spent = mutableSetOf<String>()
 
     override var phase = RoundPhase.Aiming
         private set
@@ -170,12 +181,18 @@ class BrickGame(
     }
 
     override fun selectAbility(abilityId: String) {
-        if (phase != RoundPhase.Aiming) return
+        if (phase != RoundPhase.Aiming || abilityId in spent) return
         if (abilityList.any { it.id == abilityId }) selectedId = abilityId
+    }
+
+    override fun unselectAbility() {
+        if (phase != RoundPhase.Aiming || !singleUsePowerUps) return
+        selectedId = null
     }
 
     override fun boost(ability: Ability): Boolean {
         if (phase.isFinished) return false
+        // A spent power-up stays in the list, so it can't come back as a boost either.
         if (abilityList.any { it.id == ability.id } || pendingBoosts.any { it.id == ability.id }) return false
         pendingBoosts += ability
         return true
@@ -210,6 +227,8 @@ class BrickGame(
         fired += aimAngle
         shotAbility = selectedAbility
         firedAbilityIds += shotAbility?.id
+        // It stays picked while this shot flies (the UI draws it) and is unpicked next round.
+        if (singleUsePowerUps) shotAbility?.let { spent += it.id }
         val vx = cos(aimAngle) * config.ballSpeed
         val vy = -sin(aimAngle) * config.ballSpeed
         for (ball in ballList) {
@@ -451,6 +470,7 @@ class BrickGame(
         }
         // A level's rows stop after its last row round; the rest is clearing the board.
         if (levelRows == null || round <= levelRows) spawnRow(config.rowValues.valueFor(round))
+        if (selectedId in spent) selectedId = null
         stepsInPhase = 0
         phase = RoundPhase.Aiming
         events += GameEvent.RoundStarted(round, ballCount)

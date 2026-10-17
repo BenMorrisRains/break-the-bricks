@@ -68,7 +68,7 @@ class LevelProgressTest {
         val drillLevel = PaidLevels.all.first { it.power == Drill }
         val game = drillLevel.newGame(GridPhysics)
         val intro = levelIntro(game, drillLevel)
-        assertEquals(IntroCard("LEVEL ${drillLevel.number}", drillLevel.name.uppercase(), "TRY THE DRILL BALL: IT'S YOURS THIS LEVEL"), intro)
+        assertEquals(IntroCard("LEVEL ${drillLevel.number}", drillLevel.name.uppercase(), "TAP THE DRILL BALL TO USE IT: ONE SHOT THIS LEVEL"), intro)
         assertEquals("BREAK EVERY BRICK", levelIntro(one.newGame(GridPhysics), one)?.hint)
         assertNull(levelIntro(game, null), "no intro in free play")
         game.aim(1.2f)

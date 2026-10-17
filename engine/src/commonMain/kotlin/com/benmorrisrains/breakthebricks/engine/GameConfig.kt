@@ -17,11 +17,11 @@ data class GameConfig(
     val advanceSeconds: Float = 0.2f,
     /** Smallest aim angle above horizontal, in radians (about 8 degrees). */
     val minAimAngle: Float = 0.14f,
-    /** Bricks per new row are drawn between these bounds (inclusive). */
-    val minBricksPerRow: Int = 1,
+    /** Bricks per new row are drawn between these bounds (inclusive); never just one (Ben, 2026-10-17). */
+    val minBricksPerRow: Int = 2,
     val maxBricksPerRow: Int = 6,
     /** Value of the bricks in the row spawned at the start of a round. */
-    val rowValues: RowValues = RowValues.FibonacciEighths,
+    val rowValues: RowValues = RowValues.FibonacciEighthsHalfSpeed,
     /** Rows of bricks on the board when round 1 starts. Higher ranks start with more. */
     val startingRows: Int = 1,
 ) {
