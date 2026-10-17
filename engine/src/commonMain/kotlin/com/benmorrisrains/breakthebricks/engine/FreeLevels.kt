@@ -22,7 +22,7 @@ level 1
 name Warm Up
 seed 101
 rows 6
-bricks 2 3
+bricks 3 4
 stars 8 6
 row . . . . . . .
 row . . . . . . .
@@ -33,7 +33,8 @@ level 2
 name Two by Two
 seed 202
 rows 7
-bricks 1 3
+bricks 3 4
+ahead 2
 stars 9 7
 row . . . . . . .
 row . . . . . . .
@@ -44,8 +45,8 @@ level 3
 name Doorstep
 seed 303
 rows 8
-bricks 2 4
-ahead 2
+bricks 3 5
+ahead 4
 stars 11 8
 row . . 2 2 2 . .
 row . . . . . . .
@@ -56,8 +57,8 @@ level 4
 name Checkers
 seed 404
 rows 9
-bricks 2 4
-ahead 2
+bricks 3 5
+ahead 6
 stars 12 9
 row 2 . 2 . 2 . 2
 row . 2 . 2 . 2 .
@@ -67,8 +68,8 @@ level 5
 name Pull the Pin
 seed 505
 rows 10
-bricks 2 4
-ahead 1
+bricks 4 5
+ahead 6
 stars 12 10
 row . . . . . . .
 row . . . . . . .
@@ -79,8 +80,8 @@ level 6
 name Brick Wall
 seed 606
 rows 10
-bricks 3 5
-ahead 1
+bricks 4 6
+ahead 8
 stars 13 10
 row 3 3 3 . 3 3 3
 row . . . . . . .
@@ -91,8 +92,8 @@ level 7
 name Pillars
 seed 707
 rows 10
-bricks 3 5
-ahead 1
+bricks 4 6
+ahead 8
 stars 13 10
 row 4 . . 4 . . 4
 row 3 . . 3 . . 3
@@ -102,8 +103,8 @@ level 8
 name Funnel
 seed 808
 rows 11
-bricks 3 5
-ahead 2
+bricks 4 6
+ahead 8
 stars 14 11
 row 5 4 . . . 4 5
 row . 3 . . . 3 .
@@ -114,8 +115,8 @@ level 9
 name Fortress
 seed 909
 rows 11
-bricks 3 6
-ahead 2
+bricks 4 7
+ahead 8
 stars 15 12
 row . 6 6 6 6 6 .
 row . 4 . . . 4 .
@@ -125,9 +126,9 @@ level 10
 name Last Free Level
 seed 1010
 rows 12
-bricks 3 6
-ahead 2
-stars 17 14
+bricks 4 7
+ahead 8
+stars 16 13
 row 8 . 8 . 8 . 8
 row . 6 . 6 . 6 .
 row 4 . . 4 . . 4

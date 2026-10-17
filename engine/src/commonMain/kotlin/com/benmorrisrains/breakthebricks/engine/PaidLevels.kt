@@ -18,231 +18,231 @@ object PaidLevels {
 
     const val TEXT = """
 # Break The Bricks: paid levels 11 to 30.
-# Same rules as the free levels; `power` lends a power-up for that level from the first shot.
+# Same rules as the free levels; `power` lends a power-up for one shot in that level.
 
 level 11
 name Twin Towers
-seed 1414
+seed 9333
 rows 13
-bricks 4 7
-ahead 1
+bricks 5 7
+ahead 8
 stars 17 14
-row . 12 . . . 12 .
-row . 10 . . . 10 .
-row 4 . . 4 . . 4
+row . 9 . . . 9 .
+row . 8 . . . 8 .
+row 3 . . 3 . . 3
 
 level 12
 name Heavy Hitter
 seed 1218
 rows 12
-bricks 4 7
-ahead 2
+bricks 5 7
+ahead 10
 power big_ball
-stars 17 14
-row 9 9 9 . 9 9 9
+stars 16 13
+row 4 4 4 . 4 4 4
 row . . . . . . .
-row 4 4 . . . 4 4
+row 2 2 . . . 2 2
 
 level 13
 name Zigzag
-seed 1318
+seed 17156
 rows 12
-bricks 5 7
-ahead 2
-stars 17 14
-row 10 . . . . . 10
-row . 8 . . . 8 .
-row . . 5 . 5 . .
+bricks 6 7
+ahead 9
+stars 16 13
+row 6 . . . . . 6
+row . 5 . . . 5 .
+row . . 3 . 3 . .
 
 level 14
 name Overtime
-seed 1112
+seed 9031
 rows 12
-bricks 5 6
-ahead 2
-stars 18 15
-row 10 10 . 10 . 10 10
-row . 7 . 7 . 7 .
-row 4 . . 4 . . 4
+bricks 6 7
+ahead 9
+stars 17 14
+row 6 6 . 6 . 6 6
+row . 4 . 4 . 4 .
+row 2 . . 2 . . 2
 
 level 15
 name Crossfire
 seed 1515
 rows 13
-bricks 5 7
-ahead 1
-stars 19 16
-row 12 . . 12 . . 12
-row . . 9 . 9 . .
-row 5 . . . . . 5
+bricks 6 7
+ahead 9
+stars 18 15
+row 6 . . 6 . . 6
+row . . 4 . 4 . .
+row 2 . . . . . 2
 
 level 16
 name Scatter
-seed 1619
+seed 25376
 rows 12
 bricks 6 7
-ahead 2
+ahead 10
 power splitter
 stars 18 15
-row 12 . . 12 . . 12
-row . . 10 . 10 . .
-row . 5 . . . 5 .
+row 7 . . 7 . . 7
+row . . 6 . 6 . .
+row . 3 . . . 3 .
 
 level 17
 name Picket Fence
 seed 2021
 rows 12
-bricks 4 6
-ahead 3
-stars 19 16
-row 16 . 16 . 16 . 16
-row . 12 . 12 . 12 .
-row 5 . . 5 . . 5
+bricks 5 7
+ahead 10
+stars 17 14
+row 10 . 10 . 10 . 10
+row . 7 . 7 . 7 .
+row 3 . . 3 . . 3
 
 level 18
 name Gatekeeper
 seed 1718
 rows 13
-bricks 4 6
-ahead 2
-stars 19 16
-row 14 14 14 . 14 14 14
+bricks 5 7
+ahead 10
+stars 18 15
+row 7 7 7 . 7 7 7
 row . . . . . . .
-row 5 . 5 . 5 . 5
+row 2 . 2 . 2 . 2
 
 level 19
 name Diamond
-seed 2330
+seed 10249
 rows 13
-bricks 4 7
-ahead 2
-stars 20 17
-row . . . 20 . . .
-row . . 14 . 14 . .
-row . 6 . . . 6 .
+bricks 5 7
+ahead 10
+stars 18 15
+row . . . 10 . . .
+row . . 7 . 7 . .
+row . 3 . . . 3 .
 
 level 20
 name Bunker
-seed 2222
+seed 25979
 rows 14
-bricks 4 7
-ahead 1
-stars 20 17
-row 18 18 18 . 18 18 18
-row 10 . . . . . 10
+bricks 5 7
+ahead 9
+stars 19 16
+row 9 9 9 . 9 9 9
 row 5 . . . . . 5
+row 2 . . . . . 2
 
 level 21
 name Core Sample
-seed 2121
+seed 17959
 rows 13
-bricks 5 7
-ahead 2
+bricks 6 7
+ahead 10
 power drill
 stars 18 15
-row . 16 . 16 . 16 .
-row . 14 . 14 . 14 .
-row . 10 . 10 . 10 .
+row . 8 . 8 . 8 .
+row . 7 . 7 . 7 .
+row . 5 . 5 . 5 .
 
 level 22
 name Staircase
-seed 1921
+seed 17759
 rows 13
-bricks 4 7
-ahead 2
-stars 20 17
-row 16 16 . . . . .
-row 12 12 12 . . . .
-row 4 4 . . . . .
+bricks 5 7
+ahead 11
+stars 18 15
+row 8 8 . . . . .
+row 6 6 6 . . . .
+row 2 2 . . . . .
 
 level 23
 name Hourglass
-seed 1819
+seed 25576
 rows 14
-bricks 4 6
-ahead 1
-stars 19 16
-row 14 12 10 . 10 12 14
-row . . 8 . 8 . .
-row . . . 6 . . .
+bricks 5 7
+ahead 10
+stars 20 17
+row 8 7 6 . 6 7 8
+row . . 5 . 5 . .
+row . . . 4 . . .
 
 level 24
 name Maze Runner
-seed 2828
+seed 26585
 rows 12
-bricks 4 7
-ahead 3
+bricks 5 7
+ahead 12
 stars 18 15
-row 26 . 26 26 26 . 26
-row . . . . 18 . .
-row 8 . . . . . 8
+row 13 . 13 13 13 . 13
+row . . . . 9 . .
+row 4 . . . . . 4
 
 level 25
 name Long Haul
 seed 2552
 rows 14
-bricks 5 7
-ahead 1
+bricks 6 7
+ahead 10
 stars 20 17
-row 22 . . 22 . . 22
-row . 16 . . . 16 .
-row 6 . . 6 . . 6
+row 11 . . 11 . . 11
+row . 8 . . . 8 .
+row 3 . . 3 . . 3
 
 level 26
 name Cluster Bomb
 seed 2634
 rows 14
 bricks 6 7
-ahead 3
+ahead 9
 power grenade
-stars 17 14
-row 20 20 . . . 20 20
-row 20 20 . . . 20 20
-row . . 8 8 8 . .
+stars 20 17
+row 12 12 . . . 12 12
+row 12 12 . . . 12 12
+row . . 5 5 5 . .
 
 level 27
 name Avalanche
-seed 2932
+seed 42527
 rows 12
-bricks 4 6
-ahead 3
-stars 20 17
-row 24 24 . 24 . 24 24
-row 16 . 16 . 16 . 16
-row . 5 . . . 5 .
+bricks 5 7
+ahead 12
+stars 19 16
+row 14 14 . 14 . 14 14
+row 10 . 10 . 10 . 10
+row . 3 . . . 3 .
 
 level 28
 name Teeth
-seed 2430
+seed 34106
 rows 13
-bricks 5 7
-ahead 2
+bricks 6 7
+ahead 11
 stars 20 17
-row 20 . 20 . 20 . 20
-row 14 . 14 . 14 . 14
-row . 6 . . . 6 .
+row 15 . 15 . 15 . 15
+row 10 . 10 . 10 . 10
+row . 4 . . . 4 .
 
 level 29
 name Iron Curtain
-seed 2735
+seed 42330
 rows 13
-bricks 4 6
-ahead 3
+bricks 5 7
+ahead 12
 stars 19 16
-row 22 22 22 . 22 22 22
+row 11 11 11 . 11 11 11
 row . . . . . . .
-row 6 . 6 . 6 . 6
+row 3 . 3 . 3 . 3
 
 level 30
 name Final Brick
 seed 3054
 rows 13
-bricks 4 6
-ahead 3
-stars 20 17
-row 26 26 26 . 26 26 26
+bricks 5 7
+ahead 12
+stars 19 16
+row 13 13 13 . 13 13 13
 row . . . . . . .
-row 6 . 6 . 6 . 6
+row 3 . 3 . 3 . 3
 """
 }
 

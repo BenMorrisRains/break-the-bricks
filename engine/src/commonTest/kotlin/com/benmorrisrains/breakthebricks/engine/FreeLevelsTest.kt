@@ -18,8 +18,14 @@ class FreeLevelsTest {
         val levels = FreeLevels.all
         assertTrue(levels.zipWithNext().all { (a, b) -> b.rowCount >= a.rowCount })
         assertTrue(levels.zipWithNext().all { (a, b) -> b.maxBricksPerRow >= a.maxBricksPerRow })
-        assertTrue(levels.first().maxBricksPerRow <= 3)
+        assertTrue(levels.first().maxBricksPerRow <= 4)
         assertEquals(0, levels.first().valuesAhead)
+    }
+
+    /** Ben, 2026-10-17: a row is never just one brick, in any level. */
+    @Test
+    fun everyLevelRowHasAtLeastTwoBricks() {
+        assertTrue(Levels.all.all { it.minBricksPerRow >= 2 }, Levels.all.filter { it.minBricksPerRow < 2 }.joinToString { "level ${it.number}" })
     }
 
     /**
@@ -69,7 +75,7 @@ class FreeLevelsTest {
                 problems += "$result, 3 stars should need rounds ${level.rowCount}..${game.round}"
             }
             // The recorded shots replay to the same result.
-            val replay = LevelBot.replay(level, run.angles)
+            val replay = LevelBot.replay(level, run.angles, picks = run.picks)
             assertEquals(game.points, replay.points)
             assertEquals(game.phase, replay.phase)
         }

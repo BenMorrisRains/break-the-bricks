@@ -23,9 +23,18 @@ class RowValuesTest {
         assertEquals((1..12).map { fibonacci(it) }, (1..12).map { RowValues.fibonacciOver(1).valueFor(it) })
     }
 
+    /** Ben, 2026-10-17: values still climbed too fast, so each one lasts two rounds. */
     @Test
-    fun gamesUseFibonacciEighthsByDefault() {
-        assertEquals(RowValues.FibonacciEighths, GameConfig().rowValues)
+    fun halfSpeedHoldsEachValueForTwoRounds() {
+        val expected = listOf(1L, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 3, 3, 5, 5, 7, 7, 12, 12, 18, 18)
+        assertEquals(expected, (1..24).map { RowValues.FibonacciEighthsHalfSpeed.valueFor(it) })
+        val half = RowValues.Fibonacci.halfSpeed()
+        assertEquals(listOf(1L, 1, 1, 1, 2, 2, 3, 3), (1..8).map { half.valueFor(it) })
+    }
+
+    @Test
+    fun gamesUseHalfSpeedFibonacciEighthsByDefault() {
+        assertEquals(RowValues.FibonacciEighthsHalfSpeed, GameConfig().rowValues)
     }
 
     @Test

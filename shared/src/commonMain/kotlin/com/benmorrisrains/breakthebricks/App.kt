@@ -25,6 +25,7 @@ import com.benmorrisrains.breakthebricks.ui.ResultsScreen
 import com.benmorrisrains.breakthebricks.ui.Screen
 import com.benmorrisrains.breakthebricks.ui.SettingsScreen
 import com.benmorrisrains.breakthebricks.ui.WagerScreen
+import com.benmorrisrains.breakthebricks.ui.boostTerms
 import com.benmorrisrains.breakthebricks.ui.quitWarning
 
 /**
@@ -104,6 +105,7 @@ fun App(services: PlatformServices = remember { PlatformServices() }) {
                         onBoost = shell::watchAdForBoost,
                         adMissed = session.adMissed,
                         adFree = session.unlock.adRewardsFree,
+                        boostTerms = boostTerms(session.engine),
                     )
                 }
             }

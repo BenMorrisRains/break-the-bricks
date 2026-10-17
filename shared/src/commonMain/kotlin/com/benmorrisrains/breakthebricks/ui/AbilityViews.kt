@@ -86,14 +86,32 @@ class AbilityShowcase {
 internal fun trayIds(engine: GameEngine): List<String> = engine.activeAbilities.map { it.id }.distinct()
 
 /**
- * Whether the tray shows a pick: with more than one ability active, the one the next shot uses
- * is ringed and the player can tap another while aiming.
+ * Whether the tray shows a pick: with more than one ability active, or in a level (where each
+ * power-up has one shot and none is picked until tapped), the one the next shot uses is ringed
+ * and the player can tap another while aiming.
  */
-internal fun trayPicks(engine: GameEngine): Boolean = trayIds(engine).size > 1
+internal fun trayPicks(engine: GameEngine): Boolean = engine.singleUsePowerUps || trayIds(engine).size > 1
+
+/**
+ * A tap on [abilityId]'s tray slot. It picks that power-up for the next shot; in a level a tap
+ * on the picked one unpicks it, and a spent one does nothing.
+ */
+internal fun tapTraySlot(engine: GameEngine, abilityId: String) {
+    when {
+        abilityId in engine.spentAbilities -> Unit
+        engine.singleUsePowerUps && engine.selectedAbility?.id == abilityId -> engine.unselectAbility()
+        else -> engine.selectAbility(abilityId)
+    }
+}
+
+/** A power-up whose one shot in this level is used and isn't the shot in flight. */
+internal fun isSpent(engine: GameEngine, abilityId: String): Boolean =
+    abilityId in engine.spentAbilities && engine.selectedAbility?.id != abilityId
 
 /**
  * Active abilities as small glowing icons by the score; each pulses when it fires. With more
  * than one, the picked one is ringed and tapping another while aiming picks it for the next shot.
+ * In a level a tap arms or disarms a power-up, and a spent one stays dim.
  */
 @Composable
 internal fun AbilityTray(engine: GameEngine, showcase: AbilityShowcase, frame: LongState, modifier: Modifier = Modifier) {
@@ -111,15 +129,19 @@ internal fun AbilityTray(engine: GameEngine, showcase: AbilityShowcase, frame: L
             },
     ) {
         for (id in ids) {
-            val slot = if (ids.size > 1) {
-                Modifier.clickable(role = Role.Button, onClickLabel = "Use ${abilityName(id)}") { engine.selectAbility(id) }
+            val slot = if (trayPicks(engine)) {
+                Modifier.clickable(role = Role.Button, onClickLabel = "Use ${abilityName(id)}") { tapTraySlot(engine, id) }
             } else {
                 Modifier
             }
-            // Abilities not picked for the next shot stay in full color but fade back.
+            // Abilities not picked for the next shot stay in full color but fade back; spent ones fade further.
             val faded = Modifier.graphicsLayer {
                 frame.longValue
-                alpha = if (trayPicks(engine) && engine.selectedAbility?.id != id) 0.45f else 1f
+                alpha = when {
+                    isSpent(engine, id) -> 0.2f
+                    trayPicks(engine) && engine.selectedAbility?.id != id -> 0.45f
+                    else -> 1f
+                }
             }
             Canvas(slot.then(faded).size(TraySlot)) {
                 frame.longValue
@@ -205,7 +227,7 @@ internal fun EarnedCardOverlay(engine: GameEngine, showcase: AbilityShowcase, fr
             )
             BasicText(abilityName(shown.abilityId), style = arcadeStyle(NeonPalette.Orange, 20.sp, TextAlign.Center))
             BasicText(
-                "ACTIVE FOR THE REST\nOF THIS GAME",
+                if (engine.singleUsePowerUps) "YOURS FOR ONE SHOT\nIN THIS LEVEL" else "ACTIVE FOR THE REST\nOF THIS GAME",
                 style = arcadeStyle(NeonPalette.Cyan, 11.sp, TextAlign.Center),
             )
             // Earning a second ability doesn't change the pick, so say how to switch to it.

@@ -1,6 +1,7 @@
 package com.benmorrisrains.breakthebricks.ui
 
 import com.benmorrisrains.breakthebricks.engine.Ability
+import com.benmorrisrains.breakthebricks.engine.GameEngine
 
 /** The pause menu button that opens the ad power-ups. */
 const val BOOST_MENU_BUTTON = "POWER-UP (WATCH AD)"
@@ -16,6 +17,12 @@ const val BOOST_HEADING_FREE = "PICK A FREE POWER-UP"
 
 /** Under the heading: an ad power-up lasts this game and never joins the wager inventory. */
 const val BOOST_TERMS = "THIS GAME ONLY. CAN'T BE STAKED."
+
+/** The same in a level, where every power-up acts on one shot only. */
+const val BOOST_TERMS_LEVEL = "ONE SHOT, THIS LEVEL ONLY. CAN'T BE STAKED."
+
+/** The terms for [engine]'s game. */
+fun boostTerms(engine: GameEngine): String = if (engine.singleUsePowerUps) BOOST_TERMS_LEVEL else BOOST_TERMS
 
 /** Shown when the last ad didn't pay out. */
 const val BOOST_AD_MISSED = "NO AD RIGHT NOW. TRY AGAIN SOON."
