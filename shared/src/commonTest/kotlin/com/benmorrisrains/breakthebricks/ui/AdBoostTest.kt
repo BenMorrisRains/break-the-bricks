@@ -1,6 +1,7 @@
 package com.benmorrisrains.breakthebricks.ui
 
 import com.benmorrisrains.breakthebricks.engine.Abilities
+import com.benmorrisrains.breakthebricks.engine.AbilityInventory
 import com.benmorrisrains.breakthebricks.engine.BigBall
 import com.benmorrisrains.breakthebricks.engine.BrickGame
 import com.benmorrisrains.breakthebricks.engine.Drill
@@ -15,7 +16,16 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** Watching an ad mid-game for a one-game power-up (Ben, 2026-10-13). */
+/** A free-play engine with limited power-ups, as the app makes, on the default config. */
+internal fun limitedEngine(seed: Long, @Suppress("UNUSED_PARAMETER") rank: Int, copies: AbilityInventory) = BrickGame(
+    seed = seed,
+    physics = GridPhysics,
+    abilities = Abilities.earnable.filter { copies.count(it.id) > 0 },
+    singleUsePowerUps = true,
+    copies = copies.copies,
+)
+
+/** Watching an ad mid-game for a one-shot power-up (Ben, 2026-10-13). */
 class AdBoostTest {
     /** An ad the test finishes by hand. */
     private class ManualAds : RewardedAds {
@@ -35,7 +45,7 @@ class AdBoostTest {
         session = GameSession(
             services,
             newSeed = { 3L },
-            newEngine = { seed, _, abilities -> BrickGame(seed = seed, physics = GridPhysics, abilities = abilities) },
+            newEngine = ::limitedEngine,
         ),
         settings = GameSettings(services),
     )
@@ -98,6 +108,7 @@ class AdBoostTest {
         shell.watchAdForBoost(BigBall)
         ads.finish(rewarded = true)
         session.engine.fire()
+        shell.onFrame(0.016f, session.engine.drainEvents())
         assertEquals(before, session.bank.inventory)
         assertTrue(session.bank.stakeable.isEmpty(), "nothing to stake from an ad")
     }
@@ -116,7 +127,7 @@ class AdBoostTest {
     }
 
     @Test
-    fun anAbilityAlreadyOnIsNotOffered() {
+    fun freePlayOffersACopyOfOneTheGameAlreadyHas() {
         val bank = AbilityBank(store)
         bank.save(bank.inventory.add(Splitter.id))
         bank.markFirstGamePlayed()
@@ -124,13 +135,13 @@ class AdBoostTest {
             session = GameSession(
                 services,
                 newSeed = { 3L },
-                newEngine = { seed, _, abilities -> BrickGame(seed = seed, physics = GridPhysics, abilities = abilities) },
+                newEngine = ::limitedEngine,
             ),
             settings = GameSettings(services),
         )
         shell.playFreePlay()
         shell.stake(Splitter)
-        assertFalse(Splitter in shell.session.boostOffers, "the staked power-up is already on")
+        assertTrue(Splitter in shell.session.boostOffers, "power-ups are limited, so another copy helps")
     }
 
     @Test

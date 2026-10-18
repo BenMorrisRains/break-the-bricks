@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,32 +34,40 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.benmorrisrains.breakthebricks.engine.Ability
 import com.benmorrisrains.breakthebricks.engine.GameEngine
 import com.benmorrisrains.breakthebricks.engine.GameEvent
+import kotlin.math.abs
 
-/** Width of one icon slot in the HUD tray; big enough to tap when picking an ability. */
-private val TraySlot = 36.dp
+/** Space from one carousel icon to the next. */
+private val CarouselSpacing = 76.dp
+
+/** The middle carousel icon's size; the others shrink with distance. */
+private val CarouselIcon = 58.dp
+
+/** Height of the carousel strip under the field: the icon plus its name. */
+val CarouselHeight = 92.dp
 
 /**
- * The ability showcase for one game: canvas effects, the earning card and the HUD tray's pulses,
- * all fed from the same drained events. [GameScreen] holds one per engine.
+ * The ability showcase for one game: canvas effects, the earning card, the carousel's pulses and
+ * its turning, all fed from the same drained events. [GameScreen] holds one per engine.
  */
 class AbilityShowcase {
     val effects = CanvasEffects()
     val cards = EarnedCards()
     val pulses = AbilityPulses()
+    val wheel = CarouselWheel()
 
-    /** Where the tray sits on screen, in root pixels, so a card can drop into its slot. */
-    internal var trayLeft = 0f
-    internal var trayCenterY = 0f
-    internal var traySlotPx = 0f
+    /** Where the carousel's middle sits on screen, in root pixels, so a card can drop into its slot. */
+    internal var carouselCenter = Offset.Zero
+    internal var carouselSpacingPx = 0f
 
     /** Center of the earning card's overlay, in root pixels. */
     internal var cardCenter = Offset.Zero
@@ -70,31 +80,40 @@ class AbilityShowcase {
         effects.update(elapsedSeconds, events, roundValue)
         cards.update(elapsedSeconds, events)
         pulses.update(elapsedSeconds, events)
+        // A newly earned power-up turns to the middle so its card lands in view; it isn't picked.
+        for (event in events) {
+            if (event is GameEvent.AbilityEarned) {
+                val ids = trayIds(engine)
+                wheel.rotateTo(ids.indexOf(event.abilityId).coerceAtLeast(0), ids.size)
+            }
+        }
+        wheel.update(elapsedSeconds)
     }
 
-    /** Center of the tray slot [abilityId] lands in, in root pixels. */
+    /** Center of the carousel slot [abilityId] sits in, in root pixels. */
     internal fun slotCenter(engine: GameEngine, abilityId: String): Offset {
-        val index = trayIds(engine).indexOf(abilityId).coerceAtLeast(0)
-        return Offset(trayLeft + traySlotPx * (index + 0.5f), trayCenterY)
+        val ids = trayIds(engine)
+        val offset = wheel.offsetOf(ids.indexOf(abilityId).coerceAtLeast(0), ids.size)
+        return Offset(carouselCenter.x + offset * carouselSpacingPx, carouselCenter.y)
     }
 }
 
 /**
- * The tray's slots: one per active ability. An earned ability is active as soon as its card
+ * The carousel's icons: one per active ability. An earned ability is active as soon as its card
  * appears, so its slot is already there, empty until the card lands in it.
  */
 internal fun trayIds(engine: GameEngine): List<String> = engine.activeAbilities.map { it.id }.distinct()
 
 /**
- * Whether the tray shows a pick: with more than one ability active, or in a level (where each
- * power-up has one shot and none is picked until tapped), the one the next shot uses is ringed
+ * Whether the carousel shows a pick: with limited power-ups (every real game, where none is
+ * picked until tapped) or more than one ability active, the one the next shot uses is ringed
  * and the player can tap another while aiming.
  */
 internal fun trayPicks(engine: GameEngine): Boolean = engine.singleUsePowerUps || trayIds(engine).size > 1
 
 /**
- * A tap on [abilityId]'s tray slot. It picks that power-up for the next shot; in a level a tap
- * on the picked one unpicks it, and a spent one does nothing.
+ * A tap on [abilityId]'s carousel icon. It picks that power-up for the next shot; with limited
+ * power-ups a tap on the picked one unpicks it, and one with no copies left does nothing.
  */
 internal fun tapTraySlot(engine: GameEngine, abilityId: String) {
     when {
@@ -104,77 +123,137 @@ internal fun tapTraySlot(engine: GameEngine, abilityId: String) {
     }
 }
 
-/** A power-up whose one shot in this level is used and isn't the shot in flight. */
+/** A power-up with no copies left that isn't the shot in flight. */
 internal fun isSpent(engine: GameEngine, abilityId: String): Boolean =
     abilityId in engine.spentAbilities && engine.selectedAbility?.id != abilityId
 
+/** "x3": copies left of [abilityId], or null when power-ups aren't limited. */
+internal fun copiesLabel(engine: GameEngine, abilityId: String): String? = engine.copiesLeft(abilityId)?.let { "x$it" }
+
 /**
- * Active abilities as small glowing icons by the score; each pulses when it fires. With more
- * than one, the picked one is ringed and tapping another while aiming picks it for the next shot.
- * In a level a tap arms or disarms a power-up, and a spent one stays dim.
+ * The power-ups as a turning carousel under the launch line (Ben, 2026-10-17), each icon with its
+ * copies left ("x3") over it. Dragging turns it; a tap on the middle icon picks it for the next
+ * shot or, if picked, unpicks it, and a tap on a side icon turns it to the middle and picks it.
+ * The picked one is ringed in yellow; one with no copies left stays dim. It keeps its height when
+ * empty, so the field doesn't jump when the first power-up is earned.
  */
 @Composable
-internal fun AbilityTray(engine: GameEngine, showcase: AbilityShowcase, frame: LongState, modifier: Modifier = Modifier) {
+internal fun PowerUpCarousel(engine: GameEngine, showcase: AbilityShowcase, frame: LongState, modifier: Modifier = Modifier) {
     val ids by remember(engine) { derivedStateOf { frame.longValue; trayIds(engine) } }
-    if (ids.isEmpty()) return
-    Row(
+    // A badge shows once the icon's earning card has landed in its slot.
+    val labels by remember(engine) {
+        derivedStateOf { frame.longValue; ids.map { if (showcase.cards.hasLanded(it)) copiesLabel(engine, it) else null } }
+    }
+    val centerName by remember(engine) {
+        derivedStateOf { frame.longValue; ids.getOrNull(showcase.wheel.centerIndex(ids.size))?.let(::abilityName) }
+    }
+    val wheel = showcase.wheel
+    val density = LocalDensity.current
+    val spacingPx = with(density) { CarouselSpacing.toPx() }
+    Box(
         modifier
-            .width(TraySlot * ids.size)
-            .height(TraySlot)
+            .fillMaxWidth()
+            .height(CarouselHeight)
             .onGloballyPositioned { coordinates ->
                 val origin = coordinates.positionInRoot()
-                showcase.trayLeft = origin.x
-                showcase.trayCenterY = origin.y + coordinates.size.height / 2f
-                showcase.traySlotPx = coordinates.size.width.toFloat() / ids.size
-            },
-    ) {
-        for (id in ids) {
-            val slot = if (trayPicks(engine)) {
-                Modifier.clickable(role = Role.Button, onClickLabel = "Use ${abilityName(id)}") { tapTraySlot(engine, id) }
-            } else {
-                Modifier
+                showcase.carouselCenter = Offset(origin.x + coordinates.size.width / 2f, origin.y + with(density) { (CarouselIcon / 2 + 6.dp).toPx() })
+                showcase.carouselSpacingPx = spacingPx
             }
-            // Abilities not picked for the next shot stay in full color but fade back; spent ones fade further.
-            val faded = Modifier.graphicsLayer {
-                frame.longValue
-                alpha = when {
-                    isSpent(engine, id) -> 0.2f
-                    trayPicks(engine) && engine.selectedAbility?.id != id -> 0.45f
-                    else -> 1f
+            .pointerInput(engine) {
+                detectHorizontalDragGestures(
+                    onDragEnd = { wheel.release() },
+                    onDragCancel = { wheel.release() },
+                ) { change, dragAmount ->
+                    change.consume()
+                    wheel.drag(dragAmount / spacingPx)
                 }
             }
-            Canvas(slot.then(faded).size(TraySlot)) {
-                frame.longValue
-                if (!showcase.cards.hasLanded(id)) return@Canvas
-                val picking = trayPicks(engine)
-                val picked = !picking || engine.selectedAbility?.id == id
-                val pulse = showcase.pulses.pulse(id)
-                val center = Offset(size.width / 2, size.height / 2)
-                if (picking && picked) {
+            .pointerInput(engine) {
+                detectTapGestures { tap ->
+                    val count = trayIds(engine).size
+                    val index = wheel.indexAt((tap.x - size.width / 2f) / spacingPx, count) ?: return@detectTapGestures
+                    val id = trayIds(engine)[index]
+                    if (index == wheel.centerIndex(count)) {
+                        tapTraySlot(engine, id)
+                    } else {
+                        wheel.rotateTo(index, count)
+                        if (engine.selectedAbility?.id != id) tapTraySlot(engine, id)
+                    }
+                }
+            },
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        for ((index, id) in ids.withIndex()) {
+            Box(
+                Modifier
+                    .padding(top = 6.dp)
+                    .size(CarouselIcon)
+                    .graphicsLayer {
+                        frame.longValue
+                        val offset = wheel.offsetOf(index, ids.size)
+                        val distance = abs(offset)
+                        translationX = offset * spacingPx
+                        val scale = (1f - 0.22f * distance).coerceAtLeast(0.5f)
+                        scaleX = scale
+                        scaleY = scale
+                        // Icons fade toward the ends of the strip; ones not picked fade back; spent ones further.
+                        val reach = (1f - (distance - 1.5f).coerceAtLeast(0f)).coerceIn(0f, 1f)
+                        alpha = reach * when {
+                            isSpent(engine, id) -> 0.25f
+                            trayPicks(engine) && engine.selectedAbility?.id != id -> 0.6f
+                            else -> 1f
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Canvas(Modifier.fillMaxSize()) {
+                    frame.longValue
+                    if (!showcase.cards.hasLanded(id)) return@Canvas
+                    val picking = trayPicks(engine)
+                    val picked = !picking || engine.selectedAbility?.id == id
+                    val pulse = showcase.pulses.pulse(id)
+                    val center = Offset(size.width / 2, size.height / 2)
                     drawCircle(
-                        NeonPalette.Yellow,
+                        if (picking && picked) NeonPalette.Yellow else NeonPalette.Purple.copy(alpha = 0.6f),
                         radius = size.minDimension * 0.47f,
                         center = center,
-                        style = Stroke(width = size.minDimension * 0.07f),
+                        style = Stroke(width = size.minDimension * (if (picking && picked) 0.07f else 0.04f)),
+                    )
+                    drawCircle(
+                        NeonPalette.Purple.copy(alpha = (if (picked) 0.22f else 0.08f) + 0.5f * pulse),
+                        radius = size.minDimension * (0.4f + 0.2f * pulse),
+                        center = center,
+                        blendMode = BlendMode.Plus,
+                    )
+                    drawAbilityIcon(id, center, size.minDimension * (0.62f + 0.3f * pulse))
+                }
+                val label = labels.getOrNull(index)
+                if (label != null) {
+                    BasicText(
+                        label,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .background(NeonPalette.Background.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 3.dp),
+                        style = arcadeStyle(NeonPalette.Ink, 14.sp),
                     )
                 }
-                drawCircle(
-                    NeonPalette.Purple.copy(alpha = (if (picked) 0.22f else 0.08f) + 0.5f * pulse),
-                    radius = size.minDimension * (0.4f + 0.2f * pulse),
-                    center = center,
-                    blendMode = BlendMode.Plus,
-                )
-                drawAbilityIcon(id, center, size.minDimension * (0.7f + 0.35f * pulse))
             }
+        }
+        centerName?.let { name ->
+            BasicText(
+                name,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
+                style = arcadeStyle(NeonPalette.Cyan, 11.sp, TextAlign.Center),
+            )
         }
     }
 }
 
 /**
  * The earning card (plan doc): it flips in over the game with the ability's name, its looping
- * preview and "Active for the rest of this game" (plus how to switch to it when another ability
- * is already picked), holds, then shrinks into the ability's HUD
- * tray slot. While it shows it swallows touches; a tap sends it to the tray at once.
+ * preview and what the copy is good for (plus how to pick it), holds, then shrinks into the
+ * ability's carousel slot. While it shows it swallows touches; a tap sends it to the tray at once.
  */
 @Composable
 internal fun EarnedCardOverlay(engine: GameEngine, showcase: AbilityShowcase, frame: LongState, modifier: Modifier = Modifier) {
@@ -227,13 +306,17 @@ internal fun EarnedCardOverlay(engine: GameEngine, showcase: AbilityShowcase, fr
             )
             BasicText(abilityName(shown.abilityId), style = arcadeStyle(NeonPalette.Orange, 20.sp, TextAlign.Center))
             BasicText(
-                if (engine.singleUsePowerUps) "YOURS FOR ONE SHOT\nIN THIS LEVEL" else "ACTIVE FOR THE REST\nOF THIS GAME",
+                when {
+                    engine.levelRows != null -> "+1 COPY: ONE SHOT\nIN THIS LEVEL"
+                    engine.singleUsePowerUps -> "+1 COPY: ONE SHOT\nSAVED TO YOUR STASH"
+                    else -> "ACTIVE FOR THE REST\nOF THIS GAME"
+                },
                 style = arcadeStyle(NeonPalette.Cyan, 11.sp, TextAlign.Center),
             )
             // Earning a second ability doesn't change the pick, so say how to switch to it.
             if (trayPicks(engine)) {
                 BasicText(
-                    "TAP ITS ICON BY THE SCORE\nTO USE IT NEXT SHOT",
+                    "TAP IT BELOW THE LINE\nTO USE IT NEXT SHOT",
                     style = arcadeStyle(NeonPalette.Yellow, 10.sp, TextAlign.Center),
                 )
             }

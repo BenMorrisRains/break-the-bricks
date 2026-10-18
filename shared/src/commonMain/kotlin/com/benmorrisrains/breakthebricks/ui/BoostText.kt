@@ -22,7 +22,12 @@ const val BOOST_TERMS = "THIS GAME ONLY. CAN'T BE STAKED."
 const val BOOST_TERMS_LEVEL = "ONE SHOT, THIS LEVEL ONLY. CAN'T BE STAKED."
 
 /** The terms for [engine]'s game. */
-fun boostTerms(engine: GameEngine): String = if (engine.singleUsePowerUps) BOOST_TERMS_LEVEL else BOOST_TERMS
+fun boostTerms(engine: GameEngine): String = when {
+    engine.levelRows != null -> BOOST_TERMS_LEVEL
+    // Free play's power-ups are limited too (Ben, 2026-10-17), so an ad's is one shot.
+    engine.singleUsePowerUps -> "ONE SHOT, THIS GAME ONLY. CAN'T BE STAKED."
+    else -> BOOST_TERMS
+}
 
 /** Shown when the last ad didn't pay out. */
 const val BOOST_AD_MISSED = "NO AD RIGHT NOW. TRY AGAIN SOON."

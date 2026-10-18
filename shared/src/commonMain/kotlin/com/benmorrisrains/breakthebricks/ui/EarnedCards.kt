@@ -44,14 +44,14 @@ class EarnedCard(val abilityId: String, val round: Int) {
     /** 0 edge-on, 1 facing the player. */
     val flip: Float get() = easeOut((age / EarnedCards.FLIP_IN_SECONDS).coerceIn(0f, 1f))
 
-    /** 0 while the card is up, 1 when it has shrunk into the HUD tray. */
+    /** 0 while the card is up, 1 when it has shrunk into the power-up carousel. */
     val drop: Float
         get() = easeIn(((age - EarnedCards.DROP_START) / EarnedCards.DROP_SECONDS).coerceIn(0f, 1f))
 }
 
 /**
  * The earning moment (plan doc): when a milestone round is reached, play holds for about a
- * second while an ability card flips in, then the card drops into the HUD tray. Several abilities
+ * second while an ability card flips in, then the card drops into the power-up carousel. Several abilities
  * earned at once queue up and show one after another. Fed each frame with the drained events.
  */
 class EarnedCards {
@@ -93,7 +93,7 @@ class EarnedCards {
     }
 }
 
-/** The HUD tray's pulse: an ability's icon swells and glows each round when it fires. */
+/** The power-up carousel's pulse: an ability's icon swells and glows each round when it fires. */
 class AbilityPulses(private val durationSeconds: Float = 0.6f) {
     private val remaining = mutableMapOf<String, Float>()
 

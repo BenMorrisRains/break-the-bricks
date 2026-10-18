@@ -22,8 +22,8 @@ interface GameEngine {
 
     /**
      * The one active ability the next shot's first ball uses, or null when none is picked.
-     * In free play it stays picked until the player picks another; until then it is the first
-     * one active. With [singleUsePowerUps] it is null until picked and is unpicked once used.
+     * With [singleUsePowerUps] it is null until picked and is unpicked after the shot. Without
+     * it, the pick stays until the player picks another, and until then it is the first one active.
      */
     val selectedAbility: Ability? get() = activeAbilities.firstOrNull()
     /** In a level, the rounds that bring a new row (then the board must be cleared); null in an endless game. */
@@ -36,13 +36,17 @@ interface GameEngine {
     fun selectAbility(abilityId: String) {}
 
     /**
-     * True in a level: each power-up acts on one shot only and nothing is picked until the
-     * player picks it. False in free play, where the pick acts on every shot.
+     * True when power-ups are limited (Ben, 2026-10-17), as in every real game: each copy acts on
+     * one shot, nothing is picked until the player picks it, and the pick lasts one shot.
+     * False only in tests and bots that keep the old every-shot rule.
      */
     val singleUsePowerUps: Boolean get() = false
 
-    /** With [singleUsePowerUps], the active power-ups whose one shot is already used. */
+    /** With [singleUsePowerUps], the active power-ups with no copies left. */
     val spentAbilities: Set<String> get() = emptySet()
+
+    /** With [singleUsePowerUps], copies of [abilityId] left in this game; null when power-ups aren't limited. */
+    fun copiesLeft(abilityId: String): Int? = null
 
     /** With [singleUsePowerUps], unpicks the power-up so the next shot goes without one. Only while Aiming. */
     fun unselectAbility() {}
@@ -51,9 +55,10 @@ interface GameEngine {
     fun fire()
 
     /**
-     * Turns [ability] on for the rest of this game (for one shot, with [singleUsePowerUps]), from the next shot's first ball: a one-game
-     * boost such as a rewarded ad's. It never touches the wager inventory. False when the game is
-     * over or the ability is already on (or already waiting for the next shot).
+     * Gives this game one more copy of [ability] (with [singleUsePowerUps]; else turns it on for the
+     * rest of the game), picked for the next shot: a one-game boost such as a rewarded ad's. It
+     * never touches the wager inventory. False when the game is over or the ability is already
+     * waiting for the next shot (or, without [singleUsePowerUps], already on).
      */
     fun boost(ability: Ability): Boolean = false
 

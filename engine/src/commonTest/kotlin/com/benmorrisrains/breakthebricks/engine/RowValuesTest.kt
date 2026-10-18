@@ -2,6 +2,7 @@ package com.benmorrisrains.breakthebricks.engine
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class RowValuesTest {
     @Test
@@ -30,6 +31,16 @@ class RowValuesTest {
         assertEquals(expected, (1..24).map { RowValues.FibonacciEighthsHalfSpeed.valueFor(it) })
         val half = RowValues.Fibonacci.halfSpeed()
         assertEquals(listOf(1L, 1, 1, 1, 2, 2, 3, 3), (1..8).map { half.valueFor(it) })
+    }
+
+    /** Ben, 2026-10-17 (free play): values took too many rounds to go up; now every 3 rounds. */
+    @Test
+    fun everyThreeRoundsStepsUpEveryThirdRound() {
+        val expected = listOf(1L, 1, 1, 2, 2, 2, 3, 3, 3, 5, 5, 5, 7, 7, 7, 12, 12, 12, 18)
+        assertEquals(expected, (1..19).map { RowValues.FibonacciEighthsEveryThreeRounds.valueFor(it) })
+        assertEquals(RowValues.FibonacciEighthsHalfSpeed.valueFor(30), RowValues.FibonacciEighthsEveryThreeRounds.valueFor(30))
+        assertTrue(RowValues.FibonacciEighthsEveryThreeRounds.valueFor(60) < RowValues.FibonacciEighthsHalfSpeed.valueFor(60))
+        assertEquals(RowValues.FibonacciEighthsEveryThreeRounds, Difficulty.forRank(1).rowValues, "free play at rank 1")
     }
 
     @Test

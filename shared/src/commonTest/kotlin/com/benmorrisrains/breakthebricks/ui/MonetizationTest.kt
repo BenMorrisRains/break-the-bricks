@@ -2,9 +2,7 @@ package com.benmorrisrains.breakthebricks.ui
 
 import com.benmorrisrains.breakthebricks.engine.Abilities
 import com.benmorrisrains.breakthebricks.engine.BigBall
-import com.benmorrisrains.breakthebricks.engine.BrickGame
 import com.benmorrisrains.breakthebricks.engine.FreeLevels
-import com.benmorrisrains.breakthebricks.engine.GridPhysics
 import com.benmorrisrains.breakthebricks.engine.PaidLevels
 import com.benmorrisrains.breakthebricks.platform.FakePurchases
 import com.benmorrisrains.breakthebricks.platform.GameSettings
@@ -47,7 +45,7 @@ class MonetizationTest {
             session = GameSession(
                 services,
                 newSeed = { 3L },
-                newEngine = { seed, _, abilities -> BrickGame(seed = seed, physics = GridPhysics, abilities = abilities) },
+                newEngine = ::limitedEngine,
             ),
             settings = GameSettings(services),
         )
