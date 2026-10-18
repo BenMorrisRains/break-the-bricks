@@ -9,7 +9,7 @@ interface Ability {
     /** Stable id stored in the player's inventory, e.g. "grenade". */
     val id: String
 
-    /** Round at which a game earns this ability (Ben's lineup: big ball 5, splitter 10, drill 20, grenade 30; then ghost 40, time freeze 50, 5-way splitter 60). */
+    /** Round at which a game earns this ability (Ben, 2026-10-18: one every 10 rounds, big ball 10, splitter 20, drill 30, grenade 40, ghost 50, time freeze 60, 5-way splitter 70). */
     val earnedAtRound: Int
 
     /** Round a wagered copy must reach to be kept. */
@@ -17,7 +17,7 @@ interface Ability {
 
     /**
      * Called as the round's first ball leaves the launch point, before it moves. An ability may
-     * change that ball's [Ball.size], [Ball.pierce], [Ball.ghost] or [Ball.exitsAtCeiling]; they
+     * change that ball's [Ball.size], [Ball.pierce], [Ball.ghost] or [Ball.exitsAtWall]; they
      * last until it lands or leaves.
      */
     fun onFirstLaunch(context: AbilityContext, ball: Ball) {}

@@ -1,14 +1,14 @@
 package com.benmorrisrains.breakthebricks.engine
 
 /**
- * The big ball (Ben: earned at round 5). The round's first ball flies at [SIZE] times the normal
+ * The big ball (Ben: earned at round 10). The round's first ball flies at [SIZE] times the normal
  * size, and when it hits the face of a brick while hanging over the brick beside it, that brick
  * takes a hit too. Ben's playtest call (2026-10-13): big enough to hit two bricks at a time.
  */
 object BigBall : Ability {
     override val id = "big_ball"
-    override val earnedAtRound = 5
-    override val wagerTargetRound = 10
+    override val earnedAtRound = 10
+    override val wagerTargetRound = 15
 
     /** How many times the normal radius the first ball is. */
     const val SIZE = 3f

@@ -352,7 +352,7 @@ class BrickGame(
             if (!landed && !exited) split(ball, extraBalls, spread)
         }
         if (exited) {
-            // It left through the top, so it never lands and never sets the launch point.
+            // It left at a wall, so it never lands and never sets the launch point.
             resetEffects(ball)
             ball.vx = 0f
             ball.vy = 0f
@@ -420,7 +420,7 @@ class BrickGame(
         ball.size = 1f
         ball.pierce = 0
         ball.ghost = false
-        ball.exitsAtCeiling = false
+        ball.exitsAtWall = false
         ball.insideBricks.clear()
     }
 

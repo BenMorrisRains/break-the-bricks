@@ -9,7 +9,13 @@ import kotlin.test.fail
 
 /** Ben, 2026-10-17: power-ups are limited in free play too; each copy acts on one shot. */
 class LimitedPowerUpsTest {
-    private fun freePlay(copies: Map<String, Int>, earnable: List<Ability> = emptyList(), seed: Long = 3) = BrickGame(
+    private fun freePlay(
+        copies: Map<String, Int>,
+        earnable: List<Ability> = emptyList(),
+        seed: Long = 3,
+        config: GameConfig = GameConfig(),
+    ) = BrickGame(
+        config = config,
         seed = seed,
         physics = GridPhysics,
         abilities = Abilities.earnable.filter { it.id in copies },
@@ -62,11 +68,13 @@ class LimitedPowerUpsTest {
 
     @Test
     fun earningAddsACopyEvenToOneRunOut() {
-        val game = freePlay(mapOf(BigBall.id to 1), earnable = listOf(BigBall))
+        // A tall board so the game lasts until the big ball's round.
+        val game = freePlay(mapOf(BigBall.id to 1), earnable = listOf(BigBall), config = GameConfig(rows = 20))
         game.selectAbility(BigBall.id)
         playRound(game)
         assertEquals(0, game.copiesLeft(BigBall.id))
         while (game.round < BigBall.earnedAtRound && !game.phase.isFinished) playRound(game, 1.3f)
+        assertEquals(BigBall.earnedAtRound, game.round)
         assertEquals(1, game.copiesLeft(BigBall.id))
         assertFalse(BigBall.id in game.spentAbilities)
     }

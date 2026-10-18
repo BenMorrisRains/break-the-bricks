@@ -13,8 +13,8 @@ import kotlin.test.assertTrue
 import kotlin.test.fail
 
 /**
- * Ben's lineup (2026-10-13): big ball 5, splitter 10, drill 20, grenade 30, then (Claude's default
- * rounds) ghost 40, time freeze 50 and the 5-way splitter 60; wager targets 5 later.
+ * Ben's lineup (2026-10-13): one every 10 rounds (2026-10-18): big ball 10, splitter 20, drill 30,
+ * grenade 40, ghost 50, time freeze 60 and the 5-way splitter 70; wager targets 5 later.
  */
 class AbilitiesTest {
     private fun playRound(game: BrickGame, angle: Float = 1.0f, eachStep: () -> Unit = {}) {
@@ -46,16 +46,16 @@ class AbilitiesTest {
             listOf("big_ball", "splitter", "drill", "grenade", "ghost", "time_freeze", "splitter_five"),
             Abilities.earnable.map { it.id },
         )
-        assertEquals(listOf(5, 10, 20, 30, 40, 50, 60), Abilities.earnable.map { it.earnedAtRound })
-        assertEquals(listOf(10, 15, 25, 35, 45, 55, 65), Abilities.earnable.map { it.wagerTargetRound })
+        assertEquals(listOf(10, 20, 30, 40, 50, 60, 70), Abilities.earnable.map { it.earnedAtRound })
+        assertEquals(listOf(15, 25, 35, 45, 55, 65, 75), Abilities.earnable.map { it.wagerTargetRound })
     }
 
     @Test
     fun eachAbilityIsEarnedAtItsRoundAndStaysActive() {
-        // A tall board so a game that never breaks a brick lasts past round 60.
-        val game = BrickGame(GameConfig(rows = 70), seed = 3, physics = DropPhysics { 3.5f })
+        // A tall board so a game that never breaks a brick lasts past round 70.
+        val game = BrickGame(GameConfig(rows = 80), seed = 3, physics = DropPhysics { 3.5f })
         val earned = game.drainEvents().filterIsInstance<GameEvent.AbilityEarned>().toMutableList()
-        while (game.round < 61) {
+        while (game.round < 71) {
             playRound(game)
             earned += game.drainEvents().filterIsInstance<GameEvent.AbilityEarned>()
             val expected = Abilities.earnable.filter { it.earnedAtRound <= game.round }
@@ -63,13 +63,13 @@ class AbilitiesTest {
         }
         assertEquals(
             listOf(
-                GameEvent.AbilityEarned("big_ball", 5),
-                GameEvent.AbilityEarned("splitter", 10),
-                GameEvent.AbilityEarned("drill", 20),
-                GameEvent.AbilityEarned("grenade", 30),
-                GameEvent.AbilityEarned("ghost", 40),
-                GameEvent.AbilityEarned("time_freeze", 50),
-                GameEvent.AbilityEarned("splitter_five", 60),
+                GameEvent.AbilityEarned("big_ball", 10),
+                GameEvent.AbilityEarned("splitter", 20),
+                GameEvent.AbilityEarned("drill", 30),
+                GameEvent.AbilityEarned("grenade", 40),
+                GameEvent.AbilityEarned("ghost", 50),
+                GameEvent.AbilityEarned("time_freeze", 60),
+                GameEvent.AbilityEarned("splitter_five", 70),
             ),
             earned,
         )
@@ -402,11 +402,11 @@ class AbilitiesTest {
     @Test
     fun earningAnAbilityKeepsThePlayersPick() {
         val game = BrickGame(GameConfig(rows = 40), seed = 3, physics = DropPhysics { 3.5f })
-        while (game.round < 10) playRound(game)
+        while (game.round < Splitter.earnedAtRound) playRound(game)
         assertEquals(listOf(BigBall, Splitter), game.activeAbilities)
         assertEquals(BigBall, game.selectedAbility)
         game.selectAbility(Splitter.id)
-        while (game.round < 20) playRound(game)
+        while (game.round < Drill.earnedAtRound) playRound(game)
         assertEquals(Splitter, game.selectedAbility, "earning the drill didn't move the pick")
     }
 
