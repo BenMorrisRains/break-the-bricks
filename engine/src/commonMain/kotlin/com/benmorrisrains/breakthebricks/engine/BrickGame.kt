@@ -23,7 +23,7 @@ class BrickGame(
     override val config: GameConfig = GameConfig(),
     val seed: Long,
     private val physics: BallPhysics,
-    /** Abilities active from round 1, such as a staked one. */
+    /** Abilities active from round 1, such as the player's banked copies or a level's lent one. */
     abilities: List<Ability> = emptyList(),
     /** Abilities this game earns on reaching their [Ability.earnedAtRound]. */
     private val earnable: List<Ability> = Abilities.earnable,
@@ -32,11 +32,16 @@ class BrickGame(
     /** For a level, the rounds that bring a new row; then the board must be cleared. Null for an endless game. */
     override val levelRows: Int? = null,
     /**
-     * Each power-up acts on one shot only, then is spent for the rest of the game, and none is
-     * picked until the player picks one (Ben, 2026-10-17, for levels). False for free play,
-     * where the picked power-up acts on every shot.
+     * Power-ups are limited (Ben, 2026-10-17): each copy acts on one shot, none is picked until the
+     * player picks one, and the pick lasts that one shot. Levels and free play both use this.
+     * False only for engine tests and bots that want the old rule, where the pick acts on every shot.
      */
     override val singleUsePowerUps: Boolean = false,
+    /**
+     * With [singleUsePowerUps], how many copies of each of [abilities] the game starts with,
+     * by [Ability.id]; one for any not listed. At most [AbilityInventory.MAX_COPIES] each.
+     */
+    copies: Map<String, Int> = emptyMap(),
 ) : GameEngine {
     private val random = SeededRandom(seed)
 
@@ -54,9 +59,16 @@ class BrickGame(
         get() = abilityList.firstOrNull { it.id == selectedId }
             ?: if (singleUsePowerUps) null else abilityList.firstOrNull()
 
-    /** With [singleUsePowerUps], the power-ups whose one shot is used; they can't be picked again. */
+    /** With [singleUsePowerUps], the power-ups with no copies left; they can't be picked until another is earned. */
     override val spentAbilities: Set<String> get() = spent
     private val spent = mutableSetOf<String>()
+
+    /** With [singleUsePowerUps], copies left of each active power-up, and how many of them came from boosts. */
+    private val copiesLeft = mutableMapOf<String, Int>()
+    private val boostCopies = mutableMapOf<String, Int>()
+
+    override fun copiesLeft(abilityId: String): Int? =
+        if (singleUsePowerUps) copiesLeft[abilityId] ?: 0 else null
 
     override var phase = RoundPhase.Aiming
         private set
@@ -161,6 +173,9 @@ class BrickGame(
         require(layout.size <= config.rows - 2) { "a layout has at most ${config.rows - 2} rows" }
         // A level's layout is the whole starting board; extra rank rows are for endless games.
         require(layout.isEmpty() || config.startingRows == 1) { "a layout game can't also have extra starting rows" }
+        if (singleUsePowerUps) {
+            for (ability in abilityList) setCopies(ability.id, copies[ability.id] ?: 1)
+        }
         // Higher ranks start with extra rows, worth what round 1 is worth, already on the board.
         repeat(config.startingRows - 1) {
             spawnRow(config.rowValues.valueFor(1))
@@ -192,8 +207,10 @@ class BrickGame(
 
     override fun boost(ability: Ability): Boolean {
         if (phase.isFinished) return false
-        // A spent power-up stays in the list, so it can't come back as a boost either.
-        if (abilityList.any { it.id == ability.id } || pendingBoosts.any { it.id == ability.id }) return false
+        if (pendingBoosts.any { it.id == ability.id }) return false
+        // With unlimited use an ability already on has nothing to gain, and in a level each power-up
+        // has one shot only; in free play a limited one gets another copy.
+        if (onePerPowerUp(ability.id)) return false
         pendingBoosts += ability
         return true
     }
@@ -221,6 +238,10 @@ class BrickGame(
         for (ability in pendingBoosts) {
             boostLog += fired.size to ability.id
             if (abilityList.none { it.id == ability.id }) abilityList += ability
+            if (singleUsePowerUps) {
+                addCopy(ability.id)
+                boostCopies[ability.id] = (boostCopies[ability.id] ?: 0) + 1
+            }
             selectedId = ability.id
         }
         pendingBoosts.clear()
@@ -228,7 +249,13 @@ class BrickGame(
         shotAbility = selectedAbility
         firedAbilityIds += shotAbility?.id
         // It stays picked while this shot flies (the UI draws it) and is unpicked next round.
-        if (singleUsePowerUps) shotAbility?.let { spent += it.id }
+        if (singleUsePowerUps) shotAbility?.let { ability ->
+            setCopies(ability.id, (copiesLeft[ability.id] ?: 0) - 1)
+            // A boost's copy goes first, so the player's own copies last longest.
+            val boosted = (boostCopies[ability.id] ?: 0) > 0
+            if (boosted) boostCopies[ability.id] = boostCopies.getValue(ability.id) - 1
+            events += GameEvent.PowerUpUsed(ability.id, boosted)
+        }
         val vx = cos(aimAngle) * config.ballSpeed
         val vy = -sin(aimAngle) * config.ballSpeed
         for (ball in ballList) {
@@ -470,7 +497,8 @@ class BrickGame(
         }
         // A level's rows stop after its last row round; the rest is clearing the board.
         if (levelRows == null || round <= levelRows) spawnRow(config.rowValues.valueFor(round))
-        if (selectedId in spent) selectedId = null
+        // A limited power-up's pick lasts one shot, so a copy is never used without a tap.
+        if (singleUsePowerUps) selectedId = null
         stepsInPhase = 0
         phase = RoundPhase.Aiming
         events += GameEvent.RoundStarted(round, ballCount)
@@ -478,17 +506,33 @@ class BrickGame(
     }
 
     /**
-     * Reaching an ability's round earns it and keeps it active (selectable) for the rest of the game.
-     * Earning one doesn't change which ability is picked.
-     * An ability that is already active (a staked copy) still reports the earned copy but
-     * doesn't fire twice.
+     * Reaching an ability's round earns it and keeps it active (selectable) for the rest of the game;
+     * with [singleUsePowerUps] it adds one copy (in a level, only if the game didn't have it yet). Earning one doesn't change which ability is picked.
+     * An ability that is already active still reports the earned copy but isn't listed twice.
      */
     private fun earnAbilities() {
         for (ability in earnable) {
             if (ability.earnedAtRound != round) continue
+            val copy = singleUsePowerUps && !onePerPowerUp(ability.id)
             if (abilityList.none { it.id == ability.id }) abilityList += ability
+            if (copy) addCopy(ability.id)
             events += GameEvent.AbilityEarned(ability.id, round)
         }
+    }
+
+    /**
+     * True when [abilityId] is already in the game and can't gain a copy: always without
+     * [singleUsePowerUps], and in a level, where each power-up acts on one shot only (Ben, 2026-10-17).
+     */
+    private fun onePerPowerUp(abilityId: String): Boolean =
+        (!singleUsePowerUps || levelRows != null) && abilityList.any { it.id == abilityId }
+
+    private fun addCopy(abilityId: String) = setCopies(abilityId, (copiesLeft[abilityId] ?: 0) + 1)
+
+    private fun setCopies(abilityId: String, count: Int) {
+        val clamped = count.coerceIn(0, AbilityInventory.MAX_COPIES)
+        copiesLeft[abilityId] = clamped
+        if (clamped == 0) spent += abilityId else spent -= abilityId
     }
 
     /** Moves every brick down one row, bottom row first. */

@@ -70,6 +70,8 @@ class GameFeedback(
                     sounds += SoundEffect.LevelComplete
                     tap(HapticStrength.Medium)
                 }
+                // The shot's own fire sound covers it.
+                is GameEvent.PowerUpUsed -> Unit
             }
         }
 

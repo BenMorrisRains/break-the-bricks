@@ -2,9 +2,11 @@ package com.benmorrisrains.breakthebricks.ui
 
 import com.benmorrisrains.breakthebricks.engine.Ability
 import com.benmorrisrains.breakthebricks.engine.AbilityInventory
+import com.benmorrisrains.breakthebricks.engine.BigBall
 import com.benmorrisrains.breakthebricks.engine.FreeLevels
 import com.benmorrisrains.breakthebricks.engine.GameEvent
 import com.benmorrisrains.breakthebricks.engine.GrenadeBall
+import com.benmorrisrains.breakthebricks.engine.PaidLevels
 import com.benmorrisrains.breakthebricks.engine.RoundPhase
 import com.benmorrisrains.breakthebricks.engine.WagerOutcome
 import com.benmorrisrains.breakthebricks.platform.GameSettings
@@ -22,14 +24,15 @@ import kotlin.test.assertTrue
 class WagerFlowTest {
     private val store = InMemoryStore()
     private val engines = mutableListOf<GameSessionTest.FakeEngine>()
-    private val stakes = mutableListOf<List<Ability>>()
+    /** The copies each free-play game started with. */
+    private val stakes = mutableListOf<AbilityInventory>()
 
     /** A fresh app on the same saved [store], as after a restart. */
     private fun launch() = GameShell(
         session = GameSession(
             PlatformServices(store = store),
             newSeed = { 1L },
-            newEngine = { _, _, abilities -> stakes += abilities; GameSessionTest.FakeEngine().also { engines += it } },
+            newEngine = { _, _, copies -> stakes += copies; GameSessionTest.FakeEngine().also { engines += it } },
             newLevelEngine = { GameSessionTest.FakeEngine().also { engines += it } },
         ),
         settings = GameSettings(PlatformServices(store = store)),
@@ -71,7 +74,7 @@ class WagerFlowTest {
         assertEquals(WagerOutcome.Unstaked, result.wagerOutcome)
         assertEquals(listOf<Ability>(GrenadeBall), result.banked)
         assertEquals(listOf(WagerLine("GRENADE BALL BANKED +1", won = true)), wagerLines(result))
-        assertEquals(emptyList(), stakes.last(), "nothing staked")
+        assertEquals(AbilityInventory(), stakes.last(), "nothing in the bank yet")
     }
 
     @Test
@@ -84,21 +87,21 @@ class WagerFlowTest {
 
         shell.stake(GrenadeBall)
         assertEquals(Screen.Game, shell.screen)
-        assertEquals(listOf<Ability>(GrenadeBall), stakes.last(), "the staked grenade is active from round 1")
+        assertEquals(0, stakes.last().count(GrenadeBall.id), "the staked grenade sits out the game")
         assertEquals(0, shell.grenades, "the stake leaves the inventory as the game starts")
 
         shell.reachRound(earnRound)
         shell.event(GameEvent.AbilityEarned(GrenadeBall.id, earnRound))
-        assertEquals(0, shell.grenades, "earning the staked ability doesn't bank a copy")
+        assertEquals(1, shell.grenades, "earning the staked ability banks a copy to use")
         shell.reachRound(target)
-        assertEquals(2, shell.grenades, "the target round wins: stake back plus 1")
+        assertEquals(3, shell.grenades, "the target round wins: stake back plus 1")
         shell.reachRound(target + 2)
         shell.endGame()
 
         val result = assertIs<Screen.Results>(shell.screen).result
         assertEquals(WagerOutcome.Won, result.wagerOutcome)
-        assertEquals(listOf(WagerLine("GRENADE BALL KEPT +1  (GRENADE BALL x2)", won = true)), wagerLines(result))
-        assertEquals(2, launch().grenades, "the win is saved")
+        assertEquals(listOf(WagerLine("GRENADE BALL KEPT +1  (GRENADE BALL x3)", won = true)), wagerLines(result))
+        assertEquals(3, launch().grenades, "the win is saved")
     }
 
     @Test
@@ -117,7 +120,7 @@ class WagerFlowTest {
 
         shell.play()
         assertEquals(Screen.Game, shell.screen, "an empty inventory plays a free, unstaked game")
-        assertEquals(emptyList(), stakes.last())
+        assertEquals(AbilityInventory(), stakes.last())
     }
 
     @Test
@@ -165,6 +168,33 @@ class WagerFlowTest {
         assertTrue(shell.session.bank.stakeRequired)
         shell.playFreePlay()
         assertEquals(Screen.Wager, shell.screen)
+    }
+
+    /** Ben, 2026-10-17: power-ups are limited; a copy used on a shot is gone from the bank. */
+    @Test
+    fun freePlayStartsWithTheBankAndAUsedCopyLeavesIt() {
+        val shell = launch()
+        shell.playFirstGameEarningAGrenade()
+        shell.session.bank.save(AbilityInventory().add(GrenadeBall.id, 3).add(BigBall.id, 2))
+        shell.playFreePlay()
+        shell.stake(BigBall)
+        assertEquals(AbilityInventory().add(GrenadeBall.id, 3).add(BigBall.id, 1), stakes.last(), "every copy but the stake")
+        shell.event(GameEvent.PowerUpUsed(GrenadeBall.id))
+        assertEquals(2, shell.grenades)
+        shell.event(GameEvent.PowerUpUsed(GrenadeBall.id, boosted = true))
+        assertEquals(2, shell.grenades, "an ad's copy was never in the bank")
+        assertEquals(2, launch().grenades, "the use is saved")
+    }
+
+    @Test
+    fun aLevelsLentPowerUpIsUsedBeforeTheBank() {
+        val shell = launch()
+        shell.playFirstGameEarningAGrenade()
+        shell.goHome()
+        val level = PaidLevels.all.first { it.power == GrenadeBall }
+        shell.session.newGame(level)
+        shell.event(GameEvent.PowerUpUsed(GrenadeBall.id))
+        assertEquals(1, shell.grenades, "the lent copy went first")
     }
 
     @Test

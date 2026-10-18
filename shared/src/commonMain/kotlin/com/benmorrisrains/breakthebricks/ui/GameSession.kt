@@ -4,7 +4,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.benmorrisrains.breakthebricks.engine.Abilities
 import com.benmorrisrains.breakthebricks.engine.Ability
+import com.benmorrisrains.breakthebricks.engine.AbilityInventory
 import com.benmorrisrains.breakthebricks.engine.BrickGame
 import com.benmorrisrains.breakthebricks.engine.Difficulty
 import com.benmorrisrains.breakthebricks.engine.GameEngine
@@ -28,13 +30,15 @@ import kotlin.random.Random
  * Free-play games are built for the player's rank with [Difficulty.forRank]; levels keep their
  * own layouts. Every game's points, free play or level, count toward the next rank when it ends.
  *
- * Free play carries the ability wager: after the first game, a game with anything in the
- * [bank] stakes one copy, which is active from round 1. Levels are never staked (default not
- * yet confirmed by Ben), but abilities earned in them are banked like any other.
+ * Power-ups are limited (Ben, 2026-10-17). In free play the game starts with the [bank]'s
+ * copies, and each copy used on a shot leaves the bank for good. Free play carries the ability
+ * wager: after the first game, a game with anything in the [bank] stakes one copy, which sits
+ * out the game. Levels are never staked (default not yet confirmed by Ben) and don't draw on
+ * the bank, but abilities earned in them are banked like any other, so using one spends it.
  *
  * During a game the player can watch a rewarded ad for one power-up ([watchAdForBoost]). It is
- * on for that game only, from the next shot, and never enters the [bank], so it can't be
- * staked (Ben, 2026-10-13). One ad boost per game (default not yet confirmed by Ben).
+ * one copy for that game only, used on the next shot, and never enters the [bank], so it can't
+ * be staked (Ben, 2026-10-13). One ad boost per game (default not yet confirmed by Ben).
  *
  * The seed is the only thing picked at random, and it is picked here, outside the engine; the
  * engine itself stays deterministic for a given seed and set of aims.
@@ -42,8 +46,15 @@ import kotlin.random.Random
 class GameSession(
     private val services: PlatformServices,
     private val newSeed: () -> Long = { Random.nextLong() },
-    private val newEngine: (seed: Long, rank: Int, abilities: List<Ability>) -> GameEngine = { seed, rank, abilities ->
-        BrickGame(Difficulty.forRank(rank), seed = seed, physics = GridPhysics, abilities = abilities)
+    private val newEngine: (seed: Long, rank: Int, copies: AbilityInventory) -> GameEngine = { seed, rank, copies ->
+        BrickGame(
+            Difficulty.forRank(rank),
+            seed = seed,
+            physics = GridPhysics,
+            abilities = Abilities.earnable.filter { copies.count(it.id) > 0 },
+            singleUsePowerUps = true,
+            copies = copies.copies,
+        )
     },
     private val newLevelEngine: (Level) -> GameEngine = { it.newGame(GridPhysics) },
 ) {
@@ -73,8 +84,11 @@ class GameSession(
     /** The saved ability inventory. */
     val bank = AbilityBank(services.store)
 
-    var engine: GameEngine by mutableStateOf(newEngine(newSeed(), gameRank, emptyList()))
+    var engine: GameEngine by mutableStateOf(newEngine(newSeed(), gameRank, AbilityInventory()))
         private set
+
+    /** A level's lent power-up copies by ability id; they never came from the [bank]. */
+    private val lent = mutableMapOf<String, Int>()
 
     /** The current game's wager; unstaked for levels, the first game and an empty inventory. */
     var wager: WagerGame by mutableStateOf(WagerGame())
@@ -92,12 +106,16 @@ class GameSession(
     var adMissed: Boolean by mutableStateOf(false)
         private set
 
-    /** Power-ups an ad can turn on right now: none once this game has had one, else any not already on. */
+    /**
+     * Power-ups an ad can add a copy of right now: none once this game has had one, else any in
+     * free play, and in a level (one shot per power-up) any the level doesn't have yet.
+     */
     val boostOffers: List<Ability>
         get() = if (boostUsed || adShowing || engine.phase.isFinished) {
             emptyList()
         } else {
-            bank.abilities.filter { ability -> engine.activeAbilities.none { it.id == ability.id } }
+            val anyMore = engine.singleUsePowerUps && engine.levelRows == null
+            bank.abilities.filter { ability -> anyMore || engine.activeAbilities.none { it.id == ability.id } }
         }
 
     /** The best of the current mode: free play, or the level being played. */
@@ -145,6 +163,7 @@ class GameSession(
         for (event in events) {
             bank.save(wager.onEvent(event, bank.inventory))
             when (event) {
+                is GameEvent.PowerUpUsed -> if (!event.boosted) spendCopy(event.abilityId)
                 is GameEvent.GameOver -> finish(passed = false, round = event.round, points = event.points)
                 is GameEvent.LevelCompleted -> finish(passed = true, round = event.round, points = event.points)
                 else -> Unit
@@ -191,7 +210,10 @@ class GameSession(
         gameRank = playerRank.rank
         rankUp = null
         pointsCounted = false
-        engine = if (level == null) newEngine(newSeed(), gameRank, listOfNotNull(wagered)) else newLevelEngine(level)
+        lent.clear()
+        level?.power?.let { lent[it.id] = 1 }
+        // The stake left the bank above, so the game gets every copy but the staked one.
+        engine = if (level == null) newEngine(newSeed(), gameRank, bank.inventory) else newLevelEngine(level)
         bestPoints = services.store.getLong(bestPointsKey(level), 0L)
         gameOverSeconds = 0f
         bestBeforeGame = bestPoints
@@ -224,6 +246,12 @@ class GameSession(
             adMissed = !rewarded
             onDone(granted)
         }
+    }
+
+    /** A copy of [abilityId] that wasn't an ad's was used on a shot: a lent one if the level has one, else one from the bank. */
+    private fun spendCopy(abilityId: String) {
+        val loan = lent[abilityId] ?: 0
+        if (loan > 0) lent[abilityId] = loan - 1 else bank.save(bank.inventory.remove(abilityId))
     }
 
     /** Leaves the current game. A wager still open is lost; its copy was taken at the start. */
