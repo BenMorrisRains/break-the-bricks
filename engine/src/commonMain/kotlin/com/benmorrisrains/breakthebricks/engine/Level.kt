@@ -50,8 +50,8 @@ data class Level(
 
     /**
      * A new attempt at this level. Abilities are earned as in any game and [power] is there from
-     * the start, but each power-up acts on one shot only (Ben, 2026-10-17: using one every shot
-     * made levels too easy), so the player picks when.
+     * the start, one copy each, and each copy acts on one shot only (Ben, 2026-10-17: using one
+     * every shot made levels too easy), so the player picks when.
      */
     fun newGame(
         physics: BallPhysics,

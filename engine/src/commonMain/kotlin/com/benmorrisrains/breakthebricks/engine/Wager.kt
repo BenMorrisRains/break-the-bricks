@@ -43,8 +43,10 @@ enum class WagerOutcome {
  * - [start] takes the staked copy out the moment the game starts, so quitting can't dodge a loss.
  * - Reaching the stake's [Ability.wagerTargetRound] wins it at once: the stake back plus 1 copy.
  * - Ending or quitting before that loses it; the copy taken at the start stays gone.
- * - Every ability earned in the game banks 1 copy straight away, staked or not. Earning the
- *   staked ability itself banks nothing; the wager decides that copy.
+ * - Every ability earned in the game banks 1 copy straight away, the staked one too: the staked
+ *   copy sits out the game, so the earned one is the player's to use (Ben, 2026-10-17: power-ups
+ *   are limited, so a stake no longer plays for free all game).
+ * - A copy used on a shot leaves the inventory (the app does that on [GameEvent.PowerUpUsed]).
  *
  * Pure and deterministic: the same events always settle the same way.
  */
@@ -65,9 +67,7 @@ class WagerGame(val stake: Ability? = null) {
 
     /** Applies one engine event and returns the inventory after it. */
     fun onEvent(event: GameEvent, inventory: AbilityInventory): AbilityInventory = when (event) {
-        is GameEvent.AbilityEarned -> if (event.abilityId == stake?.id) {
-            inventory
-        } else {
+        is GameEvent.AbilityEarned -> {
             bankedIds += event.abilityId
             inventory.add(event.abilityId)
         }

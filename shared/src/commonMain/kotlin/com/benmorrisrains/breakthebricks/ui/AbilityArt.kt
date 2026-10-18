@@ -83,7 +83,7 @@ internal fun DrawScope.drawGrenade(center: Offset, r: Float, silhouette: Boolean
 }
 
 /**
- * An ability's icon filling a square of [side] px around [center], for the HUD tray and the
+ * An ability's icon filling a square of [side] px around [center], for the power-up carousel and the
  * locked-ability previews. With [silhouette], a flat dim shape.
  */
 internal fun DrawScope.drawAbilityIcon(abilityId: String, center: Offset, side: Float, silhouette: Boolean = false) {

@@ -89,7 +89,7 @@ class WagerTest {
     }
 
     @Test
-    fun earningBanksACopyExceptForTheStakedAbility() {
+    fun earningBanksACopyEvenOfTheStakedAbility() {
         val free = WagerGame()
         var inventory = free.start(AbilityInventory())
         inventory = free.onEvent(GameEvent.AbilityEarned(grenade, GrenadeBall.earnedAtRound), inventory)
@@ -101,8 +101,8 @@ class WagerTest {
         val staked = WagerGame(GrenadeBall)
         inventory = staked.start(inventory)
         inventory = staked.onEvent(GameEvent.AbilityEarned(grenade, GrenadeBall.earnedAtRound), inventory)
-        assertEquals(0, inventory.count(grenade), "the wager decides the staked copy")
-        assertEquals(emptyList(), staked.banked)
+        assertEquals(1, inventory.count(grenade), "the staked copy sits out, so the earned one is the player's")
+        assertEquals(listOf(grenade), staked.banked)
     }
 
     /** An ability that does nothing but carry a wager target, so real games can be settled either way. */
@@ -156,7 +156,9 @@ class WagerTest {
         val (game, wager, inventory) = playStaked(2026)
         val won = game.round >= GrenadeBall.wagerTargetRound
         assertEquals(if (won) WagerOutcome.Won else WagerOutcome.Lost, wager.outcome)
-        assertEquals(if (won) 4 else 2, inventory.count(grenade))
+        // Reaching round 30 also earned a grenade copy, staked or not.
+        val earned = if (game.round >= GrenadeBall.earnedAtRound) 1 else 0
+        assertEquals((if (won) 4 else 2) + earned, inventory.count(grenade))
     }
 
     @Test

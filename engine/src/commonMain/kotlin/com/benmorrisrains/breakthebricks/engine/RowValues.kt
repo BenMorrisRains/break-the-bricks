@@ -18,9 +18,19 @@ fun interface RowValues {
         /**
          * Ben, 2026-10-17: values still climbed too quickly, so each [FibonacciEighths] value now
          * lasts two rounds: 1 for rounds 1 to 12, then 2, 2, 3, 3, 5, 5, 7, 7, 12, 12, ...
-         * Every game and level uses this.
+         * Levels use this; free play uses [FibonacciEighthsEveryThreeRounds].
          */
         val FibonacciEighthsHalfSpeed = FibonacciEighths.halfSpeed()
+
+        /**
+         * Ben, 2026-10-17 (free play): rows took too many rounds to go up, so the [FibonacciEighths]
+         * values now step up every 3 rounds from the start: 1, 1, 1, 2, 2, 2, 3, 3, 3, 5, 5, 5, 7,
+         * 7, 7, 12, ... It meets [FibonacciEighthsHalfSpeed] at round 30 (77) and climbs slower after.
+         */
+        val FibonacciEighthsEveryThreeRounds = RowValues { round ->
+            // FibonacciEighths is 1 up to round 6, then a new value each round; step 1 is its round 6.
+            FibonacciEighths.valueFor(5 + (round + 2) / 3)
+        }
 
         /** Fibonacci by round divided by [divisor], rounded up. Never below 1. */
         fun fibonacciOver(divisor: Long): RowValues {
