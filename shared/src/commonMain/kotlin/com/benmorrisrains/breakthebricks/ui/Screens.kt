@@ -92,7 +92,7 @@ fun PauseMenu(
 
 /**
  * After a game: points, the round reached, the best, rank progress (with a banner when the game
- * took the player up a rank), Play again and Home. After
+ * took the player up a rank), Play again and Home, then the abilities not yet reached. After
  * a level it also shows pass or fail with the stars, Next level once passed, and Levels.
  * With [showsAbilityPreviews], abilities the game didn't reach are shown off as locked, with
  * their preview clips.
@@ -130,12 +130,16 @@ fun ResultsScreen(
         MenuLabel("BEST ${formatPoints(result.bestPoints)}")
         result.rankUp?.let { MenuLabel("RANK UP!  RANK ${it.to}", NeonPalette.Lime, 22.sp) }
         RankPanel(rank)
-        if (showsAbilityPreviews) LockedAbilities(lockedAbilities(result.round))
         Spacer(Modifier.height(16.dp))
         if (onNextLevel != null) NeonButton("NEXT LEVEL", onNextLevel, color = NeonPalette.Lime)
         NeonButton(if (level == null) "PLAY AGAIN" else "RETRY", onPlayAgain, color = if (onNextLevel == null) NeonPalette.Lime else NeonPalette.Orange)
         if (onLevels != null) NeonButton("LEVELS", onLevels, color = NeonPalette.Yellow)
         NeonButton("HOME", onHome, color = NeonPalette.Cyan)
+        // The buttons sit above the previews so the player doesn't scroll past the clips to replay.
+        if (showsAbilityPreviews) {
+            Spacer(Modifier.height(16.dp))
+            LockedAbilities(lockedAbilities(result.round))
+        }
     }
 }
 
