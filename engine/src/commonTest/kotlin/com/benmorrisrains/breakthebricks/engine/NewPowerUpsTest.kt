@@ -10,7 +10,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
-/** Ben's 2026-10-13 power-up changes: the drill v2, ghost ball, time freeze and 5-way splitter. */
+/** Ben's power-up changes: the drill (2026-10-18: gone at any wall), ghost ball, time freeze and 5-way splitter. */
 class NewPowerUpsTest {
     private val straightUp = (PI / 2).toFloat()
 
@@ -44,7 +44,7 @@ class NewPowerUpsTest {
     // Drill
 
     @Test
-    fun drillBreaksEveryBrickItTouchesAndLeavesThroughTheTop() {
+    fun drillBreaksEveryBrickInItsPathAndIsGoneAtTheTop() {
         val column = (1..5).map { Triple(3, it, 50L) }
         val game = gameWith(listOf(Drill), *column.toTypedArray())
         var leftAt: Float? = null
@@ -61,12 +61,18 @@ class NewPowerUpsTest {
     }
 
     @Test
-    fun drillStillLeavesAfterBouncingOffTheSideWalls() {
-        val game = gameWith(listOf(Drill), Triple(5, 4, 30L), Triple(1, 2, 30L))
-        playRound(game, angle = 0.5f)
+    fun drillIsGoneTheMomentItTouchesASideWall() {
+        // Aimed right: (5, 7) is on its first path, (3, 5) only on the path a bounce would take.
+        val game = gameWith(listOf(Drill), Triple(5, 7, 30L), Triple(3, 5, 30L))
+        var leftAtX: Float? = null
+        playRound(game, angle = 0.5f) {
+            if (leftAtX == null && game.balls.first().state == BallState.Gone) leftAtX = game.balls.first().x
+        }
         val events = game.drainEvents()
-        assertTrue(events.any { it == GameEvent.WallBounce }, "it bounced off a side wall")
-        assertTrue(events.none { it is GameEvent.BallLanded })
+        assertEquals(listOf(5 to 7), events.filterIsInstance<GameEvent.BrickBroken>().map { it.column to it.row })
+        assertEquals(30L, game.board[3, 6]?.hits, "nothing past the wall is drilled (the brick has dropped a row)")
+        assertEquals(game.config.columns - game.config.ballRadius, leftAtX!!, 1e-4f)
+        assertTrue(events.none { it == GameEvent.WallBounce || it is GameEvent.BallLanded })
     }
 
     @Test
@@ -80,11 +86,11 @@ class NewPowerUpsTest {
         assertEquals(1, landings.size, "only the second ball lands")
         assertTrue(landings.single().isFirst)
         assertEquals(landings.single().x, game.launchX)
-        assertTrue(game.balls.all { it.state == BallState.Waiting && !it.exitsAtCeiling }, "the next round starts clean")
+        assertTrue(game.balls.all { it.state == BallState.Waiting && !it.exitsAtWall }, "the next round starts clean")
     }
 
     @Test
-    fun onlyTheDrillBallLeavesThroughTheTop() {
+    fun onlyTheDrillBallLeavesAtAWall() {
         val game = gameWith(listOf(Drill), Triple(3, 4, 50L))
         playRound(game)
         playRound(game)

@@ -33,7 +33,7 @@ row 3 . . 3 . . 3
 
 level 12
 name Heavy Hitter
-seed 1218
+seed 1250
 rows 12
 bricks 5 7
 ahead 10
@@ -78,12 +78,12 @@ row 2 . . . . . 2
 
 level 16
 name Scatter
-seed 25376
+seed 25385
 rows 12
 bricks 6 7
 ahead 10
 power splitter
-stars 18 15
+stars 18 14
 row 7 . . 7 . . 7
 row . . 6 . 6 . .
 row . 3 . . . 3 .
@@ -134,7 +134,7 @@ row 2 . . . . . 2
 
 level 21
 name Core Sample
-seed 17959
+seed 17963
 rows 13
 bricks 6 7
 ahead 10
@@ -161,7 +161,7 @@ seed 25576
 rows 14
 bricks 5 7
 ahead 10
-stars 20 17
+stars 20 16
 row 8 7 6 . 6 7 8
 row . . 5 . 5 . .
 row . . . 4 . . .
@@ -190,12 +190,12 @@ row 3 . . 3 . . 3
 
 level 26
 name Cluster Bomb
-seed 2634
+seed 2653
 rows 14
 bricks 6 7
 ahead 9
 power grenade
-stars 20 17
+stars 20 16
 row 12 12 . . . 12 12
 row 12 12 . . . 12 12
 row . . 5 5 5 . .

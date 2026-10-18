@@ -79,7 +79,8 @@ class DifficultyTest {
 
     @Test
     fun abilitiesAreStillEarnedAtTheSameRound() {
-        val game = BrickGame(Difficulty.forRank(40), seed = 2, physics = DropPhysics { 3.5f })
+        // A taller board than usual so a game that never breaks a brick reaches the big ball's round.
+        val game = BrickGame(Difficulty.forRank(40).copy(rows = 20), seed = 2, physics = DropPhysics { 3.5f })
         val earned = mutableListOf<GameEvent.AbilityEarned>()
         while (game.phase != RoundPhase.GameOver && game.round < BigBall.earnedAtRound) {
             game.aim(1.0f)

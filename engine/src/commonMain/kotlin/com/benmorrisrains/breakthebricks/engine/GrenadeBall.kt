@@ -4,14 +4,14 @@ import kotlin.math.abs
 import kotlin.math.max
 
 /**
- * The grenade ball (Ben: earned at round 30). The round's first ball explodes on its first hit:
+ * The grenade ball (Ben: earned at round 40). The round's first ball explodes on its first hit:
  * it takes out that brick and 3 to 5 bricks near it (Ben's playtest, 2026-10-13), whatever their
  * numbers, then carries on as a normal ball. Every broken brick scores its remaining hits.
  */
 object GrenadeBall : Ability {
     override val id = "grenade"
-    override val earnedAtRound = 30
-    override val wagerTargetRound = 35
+    override val earnedAtRound = 40
+    override val wagerTargetRound = 45
 
     /** Bricks the blast takes out besides the one hit: a seeded pick in this range. */
     val BLAST_BRICKS = 3..5

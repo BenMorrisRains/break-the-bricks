@@ -53,8 +53,8 @@ object GridPhysics : BallPhysics {
      * The bricks it passes through stay see-through to it until it is clear of all of them, so each
      * is hit once and a ball that runs out inside a stack of bricks can't be trapped bouncing there.
      * A [Ball.ghost] ball passes through any number of bricks this way and stops being a ghost once
-     * it is clear of them. A ball that [Ball.exitsAtCeiling] stops at the ceiling and reports
-     * [BallContacts.exited] instead of bouncing.
+     * it is clear of them. A ball that [Ball.exitsAtWall] stops at the first side wall
+     * or ceiling it meets and reports [BallContacts.exited] instead of bouncing.
      *
      * Returns true when the ball lands; it then rests at [restingY] with zero velocity. Physics never
      * changes the board or [Ball.state].
@@ -99,7 +99,7 @@ object GridPhysics : BallPhysics {
             private set
         var ghost = false
             private set
-        private var exitsAtCeiling = false
+        private var exitsAtWall = false
         private var width = 0.0
         private var floorY = 0.0
 
@@ -133,7 +133,7 @@ object GridPhysics : BallPhysics {
             vy = ball.vy.toDouble()
             pierce = ball.pierce
             ghost = ball.ghost
-            exitsAtCeiling = ball.exitsAtCeiling
+            exitsAtWall = ball.exitsAtWall
             width = board.columns.toDouble()
             floorY = board.rows - radius
         }
@@ -166,7 +166,7 @@ object GridPhysics : BallPhysics {
                     ball.y = y.toFloat()
                 }
                 for (i in 0 until hitCount) contacts.brickHit(bricksHit[i] % board.columns, bricksHit[i] / board.columns)
-                if (exitsAtCeiling && anyOn(CEILING)) {
+                if (exitsAtWall && (anyOn(WALL) || anyOn(CEILING))) {
                     vx = 0.0
                     vy = 0.0
                     contacts.exited()
