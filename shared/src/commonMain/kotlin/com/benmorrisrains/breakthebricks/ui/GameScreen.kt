@@ -39,7 +39,8 @@ import com.benmorrisrains.breakthebricks.engine.Level
 private const val MAX_FRAME_SECONDS = 0.1f
 
 /**
- * The game: HUD on top, a thin divider, then the [GameCanvas]. Drives [engine] once per display
+ * The game: HUD on top, a thin divider, the [GameCanvas], then the power-up carousel under the
+ * launch line (Ben, 2026-10-17). Drives [engine] once per display
  * frame (60 or 120 Hz) and hands each frame's time and drained events to [onFrame] for sound and
  * haptics. [onFire] runs when a release fires the balls; [onGameOverTap] when the field is tapped
  * after a game over. While [paused] the engine isn't advanced; [onPause] adds a pause button to
@@ -85,7 +86,7 @@ fun GameScreen(
     }
     Box(modifier) {
         Column(Modifier.fillMaxSize()) {
-            GameHud(engine, frame, bestPoints, onPause = onPause, showcase = showcase)
+            GameHud(engine, frame, bestPoints, onPause = onPause)
             RankBar(engine, frame, hudRank)
             Box(Modifier.fillMaxWidth().height(1.dp).background(NeonPalette.Purple.copy(alpha = 0.5f)))
             GameCanvas(
@@ -99,6 +100,7 @@ fun GameScreen(
                 onGameOverTap = onGameOverTap,
                 level = level,
             )
+            PowerUpCarousel(engine, showcase, frame)
         }
         EarnedCardOverlay(engine, showcase, frame)
     }
@@ -107,7 +109,7 @@ fun GameScreen(
 /**
  * Points in large arcade digits at top center, the round on the left (in a level, the rows
  * still to come, see [roundLabel]), the best on the right. With [onPause], a pause button sits before the round.
- * With [showcase], the active abilities' tray sits right of the points.
+ * The power-ups live in the carousel under the field, not up here.
  */
 @Composable
 fun GameHud(
@@ -116,7 +118,6 @@ fun GameHud(
     bestPoints: Long,
     modifier: Modifier = Modifier,
     onPause: (() -> Unit)? = null,
-    showcase: AbilityShowcase? = null,
 ) {
     // Re-read the engine each frame but only recompose when the shown values change.
     val points by remember(engine) { derivedStateOf { frame.longValue; engine.points } }
@@ -126,10 +127,7 @@ fun GameHud(
             if (onPause != null) PauseButton(onPause)
             BasicText(text = roundLabel(round, engine.levelRows), style = arcadeStyle(NeonPalette.Purple, 14.sp))
         }
-        Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
-            BasicText(text = formatPoints(points), style = arcadeStyle(NeonPalette.Ink, 34.sp))
-            if (showcase != null) AbilityTray(engine, showcase, frame, Modifier.padding(start = 6.dp))
-        }
+        BasicText(text = formatPoints(points), modifier = Modifier.align(Alignment.Center), style = arcadeStyle(NeonPalette.Ink, 34.sp))
         BasicText(
             text = "BEST ${formatPoints(maxOf(bestPoints, points))}",
             modifier = Modifier.align(Alignment.CenterEnd),

@@ -70,7 +70,7 @@ class SingleUsePowerUpsTest {
         playRound(game)
         assertEquals(setOf(Splitter.id), game.spentAbilities)
         assertNull(game.selectedAbility)
-        assertFalse(game.boost(Splitter), "the same power-up can't come back")
+        assertFalse(game.boost(Splitter), "in a level the same power-up can't come back")
         playRound(game)
         assertEquals(listOf(Splitter.id, null), game.firedAbilities)
     }

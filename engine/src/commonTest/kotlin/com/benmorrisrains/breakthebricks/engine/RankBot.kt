@@ -5,8 +5,8 @@ import kotlin.math.PI
 /**
  * A simple greedy player for checking free-play difficulty at a rank: each round it tries a fan
  * of angles, replays the game from the start with each one, and keeps the angle that leaves the
- * safest board. Deterministic, so it gives the same result every run. It plays with the earned
- * power-ups, using whichever the game has selected, like a player who never switches.
+ * safest board. Deterministic, so it gives the same result every run. Power-ups are limited
+ * (Ben, 2026-10-17), as in the app, and the bot never picks one, so it plays without them.
  */
 object RankBot {
     private const val ANGLE_COUNT = 15
@@ -28,7 +28,7 @@ object RankBot {
     }
 
     private fun replay(config: GameConfig, seed: Long, shots: List<Float>): BrickGame {
-        val game = BrickGame(config, seed = seed, physics = GridPhysics)
+        val game = BrickGame(config, seed = seed, physics = GridPhysics, singleUsePowerUps = true)
         for (angle in shots) {
             if (game.phase != RoundPhase.Aiming) break
             game.aim(angle)
