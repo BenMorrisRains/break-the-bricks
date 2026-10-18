@@ -42,7 +42,8 @@ fun HomeScreen(
 /**
  * Over the paused game. It covers the whole field and swallows touches, so nothing behind it
  * can aim or fire. With [boostOffers], it also offers one power-up for this game for watching
- * an ad, on [boostTerms]; [adMissed] says the last ad didn't pay out.
+ * an ad, on [boostTerms]; [adMissed] says the last ad didn't pay out. With [adFree] (the
+ * one-time unlock) the power-up comes without the ad.
  */
 @Composable
 fun PauseMenu(
@@ -55,6 +56,7 @@ fun PauseMenu(
     boostOffers: List<Ability> = emptyList(),
     onBoost: (Ability) -> Unit = {},
     adMissed: Boolean = false,
+    adFree: Boolean = false,
     boostTerms: String = BOOST_TERMS,
 ) {
     val blocker = remember { MutableInteractionSource() }
@@ -67,16 +69,20 @@ fun PauseMenu(
         var choosingBoost by remember { mutableStateOf(false) }
         if (choosingBoost && boostOffers.isNotEmpty()) {
             MenuTitle("POWER-UP", NeonPalette.Yellow)
-            MenuLabel(BOOST_HEADING, NeonPalette.Ink)
+            MenuLabel(if (adFree) BOOST_HEADING_FREE else BOOST_HEADING, NeonPalette.Ink)
             MenuLabel(boostTerms, NeonPalette.Cyan, 12.sp)
             if (adMissed) MenuLabel(BOOST_AD_MISSED, NeonPalette.Orange, 12.sp)
-            for (ability in boostOffers) NeonButton(boostButtonText(ability), { onBoost(ability) }, color = NeonPalette.Yellow)
+            for (ability in boostOffers) {
+                NeonButton(boostButtonText(ability, adFree), { onBoost(ability) }, color = NeonPalette.Yellow)
+            }
             NeonButton("BACK", { choosingBoost = false }, color = NeonPalette.Cyan)
         } else {
             MenuTitle("PAUSED")
             if (warning != null) MenuLabel(warning, NeonPalette.Orange)
             NeonButton("RESUME", onResume, color = NeonPalette.Lime)
-            if (boostOffers.isNotEmpty()) NeonButton(BOOST_MENU_BUTTON, { choosingBoost = true }, color = NeonPalette.Yellow)
+            if (boostOffers.isNotEmpty()) {
+                NeonButton(if (adFree) BOOST_MENU_BUTTON_FREE else BOOST_MENU_BUTTON, { choosingBoost = true }, color = NeonPalette.Yellow)
+            }
             NeonButton("RESTART", onRestart, color = NeonPalette.Orange)
             NeonButton("SETTINGS", onSettings, color = NeonPalette.Purple)
             NeonButton("HOME", onHome, color = NeonPalette.Cyan)
@@ -88,7 +94,8 @@ fun PauseMenu(
  * After a game: points, the round reached, the best, rank progress (with a banner when the game
  * took the player up a rank), Play again and Home. After
  * a level it also shows pass or fail with the stars, Next level once passed, and Levels.
- * Abilities the game didn't reach are shown off as locked, with their preview clips.
+ * With [showsAbilityPreviews], abilities the game didn't reach are shown off as locked, with
+ * their preview clips.
  */
 @Composable
 fun ResultsScreen(
@@ -99,6 +106,7 @@ fun ResultsScreen(
     modifier: Modifier = Modifier,
     onNextLevel: (() -> Unit)? = null,
     onLevels: (() -> Unit)? = null,
+    showsAbilityPreviews: Boolean = true,
 ) {
     val level = result.level
     MenuColumn(modifier) {
@@ -122,7 +130,7 @@ fun ResultsScreen(
         MenuLabel("BEST ${formatPoints(result.bestPoints)}")
         result.rankUp?.let { MenuLabel("RANK UP!  RANK ${it.to}", NeonPalette.Lime, 22.sp) }
         RankPanel(rank)
-        LockedAbilities(lockedAbilities(result.round))
+        if (showsAbilityPreviews) LockedAbilities(lockedAbilities(result.round))
         Spacer(Modifier.height(16.dp))
         if (onNextLevel != null) NeonButton("NEXT LEVEL", onNextLevel, color = NeonPalette.Lime)
         NeonButton(if (level == null) "PLAY AGAIN" else "RETRY", onPlayAgain, color = if (onNextLevel == null) NeonPalette.Lime else NeonPalette.Orange)
@@ -157,14 +165,35 @@ fun WagerScreen(
     }
 }
 
-/** Music, sound effects and haptics toggles. Each change is saved and applied at once. */
+/**
+ * Music, sound effects and haptics toggles. Each change is saved and applied at once. With an
+ * [unlock], it also offers the one-time purchase and restores an earlier one.
+ */
 @Composable
-fun SettingsScreen(settings: GameSettings, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    settings: GameSettings,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    unlock: FullUnlock? = null,
+    onBuy: () -> Unit = {},
+    onRestore: () -> Unit = {},
+) {
     MenuColumn(modifier) {
         MenuTitle("SETTINGS", NeonPalette.Purple)
         SettingToggle(settings, Setting.Music, "MUSIC")
         SettingToggle(settings, Setting.SoundEffects, "SOUND")
         SettingToggle(settings, Setting.Haptics, "VIBRATION")
+        if (unlock != null) {
+            Spacer(Modifier.height(8.dp))
+            if (unlock.owned) {
+                MenuLabel(UNLOCK_OWNED, NeonPalette.Lime)
+            } else {
+                NeonButton(unlockButtonText(unlock.price), { if (!unlock.busy) onBuy() }, color = NeonPalette.Lime)
+                MenuLabel(UNLOCK_TERMS, NeonPalette.Lime, 12.sp)
+            }
+            NeonButton("RESTORE PURCHASE", { if (!unlock.busy) onRestore() }, color = NeonPalette.Yellow)
+            unlock.notice?.let { MenuLabel(it, NeonPalette.Orange, 12.sp) }
+        }
         Spacer(Modifier.height(16.dp))
         NeonButton("BACK", onBack, color = NeonPalette.Cyan)
     }

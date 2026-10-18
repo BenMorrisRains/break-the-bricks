@@ -20,6 +20,7 @@ import com.benmorrisrains.breakthebricks.ui.HomeScreen
 import com.benmorrisrains.breakthebricks.ui.LevelSelectScreen
 import com.benmorrisrains.breakthebricks.ui.NeonPalette
 import com.benmorrisrains.breakthebricks.ui.PauseMenu
+import com.benmorrisrains.breakthebricks.ui.PaywallScreen
 import com.benmorrisrains.breakthebricks.ui.ResultsScreen
 import com.benmorrisrains.breakthebricks.ui.Screen
 import com.benmorrisrains.breakthebricks.ui.SettingsScreen
@@ -29,8 +30,9 @@ import com.benmorrisrains.breakthebricks.ui.quitWarning
 
 /**
  * Root composable for every platform: home, level select, the wager screen, the game with its
- * pause menu, results and settings, with sound, haptics, saved settings, level progress, the
- * ability inventory, best scores and the player's rank from [services].
+ * pause menu, results and settings, and the paywall before paid levels, with sound, haptics,
+ * saved settings, level progress, the ability inventory, best scores, the player's rank, ads
+ * and the one-time purchase from [services].
  */
 @Composable
 fun App(services: PlatformServices = remember { PlatformServices() }) {
@@ -56,6 +58,18 @@ fun App(services: PlatformServices = remember { PlatformServices() }) {
                 progress = shell.session.progress,
                 onLevel = shell::playLevel,
                 onBack = shell::goHome,
+                modifier = content,
+                paywalled = shell.session.access::isPaywalled,
+                showsAbilityPreviews = shell.session.showsAbilityPreviews,
+            )
+            is Screen.Paywall -> PaywallScreen(
+                level = screen.level,
+                unlock = shell.session.unlock,
+                access = shell.session.access,
+                onBuy = shell::buyUnlock,
+                onWatchAd = shell::watchAdForLevel,
+                onRestore = shell::restorePurchases,
+                onBack = shell::openLevels,
                 modifier = content,
             )
             Screen.Wager -> WagerScreen(
@@ -90,6 +104,7 @@ fun App(services: PlatformServices = remember { PlatformServices() }) {
                         boostOffers = session.boostOffers,
                         onBoost = shell::watchAdForBoost,
                         adMissed = session.adMissed,
+                        adFree = session.unlock.adRewardsFree,
                         boostTerms = boostTerms(session.engine),
                     )
                 }
@@ -103,11 +118,15 @@ fun App(services: PlatformServices = remember { PlatformServices() }) {
                 modifier = content.verticalScroll(rememberScrollState()),
                 onNextLevel = if (shell.nextLevel() != null) shell::playNextLevel else null,
                 onLevels = if (screen.result.level != null) shell::openLevels else null,
+                showsAbilityPreviews = shell.session.showsAbilityPreviews,
             )
             is Screen.Settings -> SettingsScreen(
                 settings = shell.settings,
                 onBack = shell::closeSettings,
                 modifier = content,
+                unlock = shell.session.unlock,
+                onBuy = shell::buyUnlock,
+                onRestore = shell::restorePurchases,
             )
         }
     }

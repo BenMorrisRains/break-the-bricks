@@ -29,8 +29,9 @@ private const val TILES_PER_ROW = 2
 /**
  * Every level as a neon tile with its stars, opened from home: the 10 free levels, then the
  * paid ones under their own heading. A locked level shows dim and can't be tapped until the one
- * before it is passed; a paid level also stays locked until [LevelProgress.isPaidLocked] clears.
- * Below them, the abilities a game can earn play their preview clips.
+ * before it is passed. A paid level that is still [paywalled] says so, and tapping it opens the
+ * paywall. Below them, once [showsAbilityPreviews], the abilities a game can earn play their
+ * preview clips.
  */
 @Composable
 fun LevelSelectScreen(
@@ -38,6 +39,8 @@ fun LevelSelectScreen(
     onLevel: (Level) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    paywalled: (Int) -> Boolean = { false },
+    showsAbilityPreviews: Boolean = true,
 ) {
     Column(
         modifier.verticalScroll(rememberScrollState()),
@@ -48,22 +51,22 @@ fun LevelSelectScreen(
         val total = progress.levels.size * 3
         BasicText("★ ${progress.totalStars}/$total", style = neonText(NeonPalette.Yellow, 16.sp))
         val (free, paid) = progress.levels.partition { !it.isPaid }
-        LevelTiles(free, progress, onLevel)
+        LevelTiles(free, progress, paywalled, onLevel)
         if (paid.isNotEmpty()) {
             BasicText("LEVELS ${paid.first().number}-${paid.last().number}", style = neonText(NeonPalette.Purple, 18.sp))
-            LevelTiles(paid, progress, onLevel)
+            LevelTiles(paid, progress, paywalled, onLevel)
         }
-        LockedAbilities(Abilities.earnable, title = "ABILITIES TO EARN")
+        if (showsAbilityPreviews) LockedAbilities(Abilities.earnable, title = "ABILITIES TO EARN")
         NeonButton("BACK", onBack, color = NeonPalette.Cyan)
     }
 }
 
 @Composable
-private fun LevelTiles(levels: List<Level>, progress: LevelProgress, onLevel: (Level) -> Unit) {
+private fun LevelTiles(levels: List<Level>, progress: LevelProgress, paywalled: (Int) -> Boolean, onLevel: (Level) -> Unit) {
     for (row in levels.chunked(TILES_PER_ROW)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             for (level in row) {
-                LevelTile(level, progress, onLevel, Modifier.weight(1f))
+                LevelTile(level, progress, paywalled(level.number), onLevel, Modifier.weight(1f))
             }
             // Keep a short last row's tiles the same width.
             repeat(TILES_PER_ROW - row.size) { Box(Modifier.weight(1f)) }
@@ -72,11 +75,12 @@ private fun LevelTiles(levels: List<Level>, progress: LevelProgress, onLevel: (L
 }
 
 @Composable
-private fun LevelTile(level: Level, progress: LevelProgress, onLevel: (Level) -> Unit, modifier: Modifier) {
+private fun LevelTile(level: Level, progress: LevelProgress, paywalled: Boolean, onLevel: (Level) -> Unit, modifier: Modifier) {
     val unlocked = progress.isUnlocked(level.number)
     val stars = progress.stars(level.number)
     val color = when {
         !unlocked -> NeonPalette.Dim
+        paywalled -> NeonPalette.Yellow
         stars == 3 -> NeonPalette.Lime
         stars > 0 -> NeonPalette.Cyan
         else -> NeonPalette.Magenta
@@ -94,9 +98,9 @@ private fun LevelTile(level: Level, progress: LevelProgress, onLevel: (Level) ->
             BasicText(level.name.uppercase(), style = neonText(if (unlocked) NeonPalette.Ink else NeonPalette.Dim, 11.sp))
             BasicText(
                 when {
-                    unlocked -> starText(stars)
-                    progress.isPaidLocked(level.number) -> "PAID"
-                    else -> "LOCKED"
+                    !unlocked -> "LOCKED"
+                    paywalled -> "UNLOCK"
+                    else -> starText(stars)
                 },
                 style = neonText(if (unlocked) NeonPalette.Yellow else NeonPalette.Dim, 14.sp),
             )

@@ -44,6 +44,11 @@ kotlin {
         }
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
+            implementation(libs.play.services.ads)
+            implementation(libs.revenuecat.kmp.core)
+        }
+        iosMain.dependencies {
+            implementation(libs.revenuecat.kmp.core)
         }
     }
 }

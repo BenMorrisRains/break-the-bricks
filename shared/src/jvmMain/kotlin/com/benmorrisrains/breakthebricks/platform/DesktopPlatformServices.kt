@@ -6,12 +6,19 @@ import java.util.prefs.Preferences
 import javax.sound.sampled.AudioSystem
 import javax.sound.sampled.Clip
 
-/** The desktop services. Desktops have no vibration, so haptics do nothing. */
-fun createPlatformServices(): PlatformServices = PlatformServices(
-    audio = ClipAudio(),
-    haptics = NoOpHaptics,
-    store = PreferencesStore(Preferences.userRoot().node("com/benmorrisrains/breakthebricks")),
-)
+/**
+ * The desktop services. Desktops have no vibration, so haptics do nothing. The desktop build is
+ * for development, so its ads and store are the fakes: every ad pays out and the unlock is free.
+ */
+fun createPlatformServices(): PlatformServices {
+    val store = PreferencesStore(Preferences.userRoot().node("com/benmorrisrains/breakthebricks"))
+    return PlatformServices(
+        audio = ClipAudio(),
+        haptics = NoOpHaptics,
+        store = store,
+        purchases = FakePurchases(store),
+    )
+}
 
 /**
  * Sound effects through javax.sound clips, a few per effect so quick hits overlap, and the music

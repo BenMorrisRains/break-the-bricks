@@ -63,5 +63,5 @@ The default Claude cloud environment can't reach `dl.google.com` (Google Maven).
 
 - `engine/src/commonMain/.../engine`: `GameConfig`, `GameEngine` (the contract the UI uses), `Board`, `Brick`, `Ball`, `RoundPhase`, `GameEvent`, `Ability` (plus `BigBall`, `Splitter`, `Drill`, `GrenadeBall`, `GhostBall`, `TimeFreeze`, `SplitterFive`), `SeededRandom`, `RowValues`.
 - `shared/src/commonMain/.../ui`: `NeonPalette` and, later, screens and the game canvas.
-- `shared/src/commonMain/.../platform`: `AudioPlayer`, `Haptics`, `KeyValueStore` and no-op defaults.
+- `shared/src/commonMain/.../platform`: `AudioPlayer`, `Haptics`, `KeyValueStore`, `RewardedAds` (AdMob), `Purchases` (RevenueCat) and no-op or fake defaults. Store and ad IDs come from Gradle properties (Android) and `iosApp/Configuration/Config.xcconfig` (iOS), never from code.
 - `androidApp`, `iosApp`, `desktopApp`: thin entry points that call `App()`.
