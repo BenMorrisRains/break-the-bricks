@@ -100,7 +100,14 @@ class WagerFlowTest {
 
         val result = assertIs<Screen.Results>(shell.screen).result
         assertEquals(WagerOutcome.Won, result.wagerOutcome)
-        assertEquals(listOf(WagerLine("GRENADE BALL KEPT +1  (GRENADE BALL x3)", won = true)), wagerLines(result))
+        assertEquals(
+            listOf(
+                WagerLine("GRENADE BALL KEPT +1  (GRENADE BALL x3)", won = true),
+                WagerLine("GRENADE BALL BANKED +1", won = true),
+            ),
+            wagerLines(result),
+            "the earned copy banks too, now that the stake sits out the game",
+        )
         assertEquals(3, launch().grenades, "the win is saved")
     }
 
